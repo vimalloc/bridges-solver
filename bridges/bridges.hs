@@ -3,14 +3,38 @@ import Data.Maybe
 import Control.Applicative
 import qualified Data.Set as Set
 
+-- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
+-- Up' and Down' use the ticks to stay consistant with Left' and Right'.
+data BridgeValue = Single | Double deriving (Eq, Show, Ord)
+data BridgeDirection = Up' | Down' | Left' | Right' deriving (Eq, Show, Ord)
+data Bridge = Bridge BridgeDirection BridgeValue deriving (Show, Ord)
+
 data Point = Point Int Int deriving (Eq, Show, Ord)
+data IslandValue = One | Two | Three | Four | Five | Six | Seven | Eight deriving (Eq, Show, Ord)
+data Island = Island Point IslandValue (Set.Set Bridge) deriving (Eq, Show, Ord)
 
-data IslandValue = One | Two | Three | Four | Five | Six | Seven | Eight deriving (Eq, Show)
-data Island = Island Point IslandValue deriving (Eq, Show)
+-- Define our own equality test here. We are using a set of bridges for the
+-- island, and we don't care if the bridge is a single or double there, only
+-- what direction it is leaving the island from. This will insure we cannot
+-- have duplicate bridges on an island without any runtime checks
+instance Eq Bridge where
+    (Up' _) == (Up' _)       = True
+    (Down' _) == (Down' _)   = True
+    (Left' _) == (Left' _)   = True
+    (Right' _) == (Right' _) = True
+    _ == _                   = False
 
-data BridgeValue = Single | Double deriving (Eq, Show)
-data BridgeDirection = Up' | Down' | Left' | Right' deriving (Eq, Show)
-data Bridge = Bridge Point BridgeDirection BridgeValue deriving (Eq, Show)
+-- TODO any way I could encode no equilviant bridges in here? Ie, two bridges
+--      that start connect the same two islands, but start at different islands?
+
+-- TODO add bridges as data inside the island
+--      * This will insure at the type system level that all bridges are attached to an island
+--      * How to prevent duplicate bridges? Sets instead of list? Would need to update the
+--        Eq deriving to have it just be the same location instead of location and value,
+--        but this would allow me to guarentee to duplicates, again at the type system
+--      * Neec to figure out best way to check both bridges coming into and going
+--        out of an island when I'm solving it. This still seems like the big setback,
+--        but the other benefits seem like it would probably make this hassle worth it
 
 
 islandToChar :: Island -> Char
@@ -25,29 +49,29 @@ islandToChar (Island _ Eight) = '8'
 
 
 bridgeToChar :: Bridge -> Char
-bridgeToChar (Bridge _ Up' Single)    = '|'
-bridgeToChar (Bridge _ Down' Single)  = '|'
-bridgeToChar (Bridge _ Up' Double)    = '‖'
-bridgeToChar (Bridge _ Down' Double)  = '‖'
-bridgeToChar (Bridge _ Left' Single)  = '―'
-bridgeToChar (Bridge _ Right' Single) = '―'
-bridgeToChar (Bridge _ Left' Double)  = '═'
-bridgeToChar (Bridge _ Right' Double) = '═'
+bridgeToChar (Bridge Up' Single)    = '|'
+bridgeToChar (Bridge Down' Single)  = '|'
+bridgeToChar (Bridge Up' Double)    = '‖'
+bridgeToChar (Bridge Down' Double)  = '‖'
+bridgeToChar (Bridge Left' Single)  = '―'
+bridgeToChar (Bridge Right' Single) = '―'
+bridgeToChar (Bridge Left' Double)  = '═'
+bridgeToChar (Bridge Right' Double) = '═'
 
 
-pprint :: [Island] -> [Bridge] -> String
-pprint islands bridges = pprintLoop 0 0 xMax yMax islands bridges
-    where xMax = maximum . map (\(Island (Point x _) _) -> x) $ islands
-          yMax = maximum . map (\(Island (Point _ y) _) -> y) $ islands
+pprint :: [Island] -> String
+pprint islands = pprintLoop 0 0 xMax yMax islands
+    where xMax = maximum . map (\(Island (Point x _) _ _) -> x) $ islands
+          yMax = maximum . map (\(Island (Point _ y) _ _) -> y) $ islands
 
 
-pprintLoop :: Int -> Int -> Int -> Int -> [Island] -> [Bridge] -> String
+pprintLoop :: Int -> Int -> Int -> Int -> [Island] -> String
 pprintLoop x y xMax yMax islands bridges
     | y > yMax  = ""
-    | x > xMax  = "\n" ++ pprintLoop 0 (y+1) xMax yMax islands bridges
-    | otherwise = c : " " ++ pprintLoop (x+1) y xMax yMax islands bridges
+    | x > xMax  = "\n" ++ pprintLoop 0 (y+1) xMax yMax islands
+    | otherwise = c : " " ++ pprintLoop (x+1) y xMax yMax islands
     where i = islandAtPoint (Point x y) islands
-          b = bridgeAtPoint (Point x y) islands bridges
+          b = bridgeAtPoint (Point x y) islands
           c = fromJust $ (islandToChar <$> i) <|> (bridgeToChar <$> b) <|> Just ' '
 
 
@@ -55,13 +79,29 @@ islandAtPoint :: Point -> [Island] -> Maybe Island
 islandAtPoint p' = find (\(Island p _) -> p == p')
 
 
-bridgeAtPoint :: Point -> [Island] -> [Bridge] -> Maybe Bridge
-bridgeAtPoint p i = find (pointBetweenBridge p i)
+-- TODO pull bridge out of result somehow...
+bridgeAtPoint :: Point -> [Island] -> Maybe Bridge
+bridgeAtPoint p i = find (pointBetweenBridge p i) i
 
 
-pointBetweenBridge :: Point -> [Island] -> Bridge -> Bool
-pointBetweenBridge point islands bridge = point `elem` bridgePoints
-    where bridgePoints = pointsInBridge bridge islands
+-- TODO actually see if the point exists in this bridge
+pointBetweenBridge :: Point -> [Island] -> Island -> Bool
+pointBetweenBridge (Point x1 y1) _ (Island (Point x2 y2) _ (Set.Set Bridge Up _))
+    | x1 == x2 && y1 < y2 = True
+    | otherwise           = False
+pointBetweenBridge (Point x1 y1) _ (Island (Point x2 y2) _ (Set.Set Bridge Down _))
+    | x1 == x2 && y1 > y2 = True
+    | otherwise           = False
+pointBetweenBridge (Point x1 y1) _ (Island (Point x2 y2) _ (Set.Set Bridge Left _))
+    | x1 < x2 && y1 == y2 = True
+    | otherwise           = False
+pointBetweenBridge (Point x1 y1) _ (Island (Point x2 y2) _ (Set.Set Bridge Right _))
+    | x1 > x2 && y1 == y2 = True
+    | otherwise           = False
+
+
+--pointBetweenBridge point islands = point `elem` bridgePoints
+--    where bridgePoints = pointsInBridge bridge islands
 
 
 -- Remember, we are says Pont 0 0 is the top left point of the puzzle,
