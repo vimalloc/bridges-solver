@@ -26,10 +26,10 @@ bridgeToChar (Bridge (Point x1 y1) (Point x2 y2) _)
     | x1 /= x2 && y1 /= y2 = error "Bridge must be horizontal or vertical"
 bridgeToChar (Bridge (Point x1 y1) (Point x2 y2) Single)
     | x1 == x2 = '|'
-    | y1 == y2 = '-'
+    | y1 == y2 = '―'
 bridgeToChar (Bridge (Point x1 y1) (Point x2 y2) Double)
-    | x1 == x2 = '#'
-    | y1 == y2 = '='
+    | x1 == x2 = '‖'
+    | y1 == y2 = '═'
 
 
 pprint :: [Island] -> [Bridge] -> String
