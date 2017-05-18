@@ -4,10 +4,13 @@ import Control.Applicative
 import qualified Data.Set as Set
 
 data Point = Point Int Int deriving (Eq, Show, Ord)
+
 data IslandValue = One | Two | Three | Four | Five | Six | Seven | Eight deriving (Eq, Show)
-data BridgeValue = Single | Double deriving (Eq, Show)
 data Island = Island Point IslandValue deriving (Eq, Show)
-data Bridge = Bridge Point Point BridgeValue deriving (Eq, Show)
+
+data BridgeValue = Single | Double deriving (Eq, Show)
+data BridgeDirection = Up' | Down' | Left' | Right' deriving (Eq, Show)
+data Bridge = Bridge Point BridgeDirection BridgeValue deriving (Eq, Show)
 
 
 islandToChar :: Island -> Char
@@ -22,15 +25,14 @@ islandToChar (Island _ Eight) = '8'
 
 
 bridgeToChar :: Bridge -> Char
-bridgeToChar (Bridge (Point x1 y1) (Point x2 y2) _)
-    | x1 == x2 && y1 == y2 = error "Bridge must have two different points"
-    | x1 /= x2 && y1 /= y2 = error "Bridge must be horizontal or vertical"
-bridgeToChar (Bridge (Point x1 y1) (Point x2 y2) Single)
-    | x1 == x2 = '|'
-    | y1 == y2 = '―'
-bridgeToChar (Bridge (Point x1 y1) (Point x2 y2) Double)
-    | x1 == x2 = '‖'
-    | y1 == y2 = '═'
+bridgeToChar (Bridge _ Up' Single)    = '|'
+bridgeToChar (Bridge _ Down' Single)  = '|'
+bridgeToChar (Bridge _ Up' Double)    = '‖'
+bridgeToChar (Bridge _ Down' Double)  = '‖'
+bridgeToChar (Bridge _ Left' Single)  = '―'
+bridgeToChar (Bridge _ Right' Single) = '―'
+bridgeToChar (Bridge _ Left' Double)  = '═'
+bridgeToChar (Bridge _ Right' Double) = '═'
 
 
 pprint :: [Island] -> [Bridge] -> String
@@ -44,28 +46,49 @@ pprintLoop x y xMax yMax islands bridges
     | y > yMax  = ""
     | x > xMax  = "\n" ++ pprintLoop 0 (y+1) xMax yMax islands bridges
     | otherwise = c : " " ++ pprintLoop (x+1) y xMax yMax islands bridges
-    where i = getIslandAtPoint (Point x y) islands
-          b = getBridgeAtPoint (Point x y) bridges
+    where i = islandAtPoint (Point x y) islands
+          b = bridgeAtPoint (Point x y) islands bridges
           c = fromJust $ (islandToChar <$> i) <|> (bridgeToChar <$> b) <|> Just ' '
 
 
-getIslandAtPoint :: Point -> [Island] -> Maybe Island
-getIslandAtPoint p' = find (\(Island p _) -> p == p')
+islandAtPoint :: Point -> [Island] -> Maybe Island
+islandAtPoint p' = find (\(Island p _) -> p == p')
 
 
-getBridgeAtPoint :: Point -> [Bridge] -> Maybe Bridge
-getBridgeAtPoint p = find (pointBetweenBridge p)
+bridgeAtPoint :: Point -> [Island] -> [Bridge] -> Maybe Bridge
+bridgeAtPoint p i = find (pointBetweenBridge p i)
 
 
-pointBetweenBridge :: Point -> Bridge -> Bool
-pointBetweenBridge (Point x' y') (Bridge (Point x1 y1) (Point x2 y2) _)
-    | x1 == x2 && y1 == y2 = error "Bridge must have two different points"
-    | x1 /= x2 && y1 /= y2 = error "Bridge must be horizontal or vertical"
-    | x' == x1 && x' == x2 = min y1 y2 < y' && y' < max y1 y2
-    | y' == y1 && y' == y2 = min x1 x2 < x' && x' < max x1 x2
-    | otherwise            = False
+pointBetweenBridge :: Point -> [Island] -> Bridge -> Bool
+pointBetweenBridge point islands bridge = point `elem` bridgePoints
+    where bridgePoints = pointsInBridge bridge islands
 
 
+-- Remember, we are says Pont 0 0 is the top left point of the puzzle,
+-- thus up and down here seem reversed
+pointsInBridge :: Bridge -> [Island] -> [Point]
+pointsInBridge b i = case b of
+                         (Bridge (Point x y) Up' _)    -> pointsInBridgeLoop (Point x (y-1)) Up' island_points
+                         (Bridge (Point x y) Down' _)  -> pointsInBridgeLoop (Point x (y+1)) Down' island_points
+                         (Bridge (Point x y) Left' _)  -> pointsInBridgeLoop (Point (x-1) y) Left' island_points
+                         (Bridge (Point x y) Right' _) -> pointsInBridgeLoop (Point (x+1) y) Right' island_points
+    where island_points = Set.fromList $ map (\ (Island p _) -> p) i
+          xMax          = maximum . map (\(Island (Point x _) _) -> x) $ i
+          yMax          = maximum . map (\(Island (Point _ y) _) -> y) $ i
+
+
+-- TODO account for possible infinate loop here. Pass in xmax and ymax and verify
+--      the bridge doesn't go past either of those two points
+pointsInBridgeLoop :: Point -> BridgeDirection -> Set.Set Point -> [Point]
+pointsInBridgeLoop p _ island_points
+    | p `Set.member` island_points = []
+pointsInBridgeLoop (Point x y) Up' i    = (Point x y) : pointsInBridgeLoop (Point x (y-1)) Up' i
+pointsInBridgeLoop (Point x y) Down' i  = (Point x y) : pointsInBridgeLoop (Point x (y+1)) Down' i
+pointsInBridgeLoop (Point x y) Left' i  = (Point x y) : pointsInBridgeLoop (Point (x-1) y) Left' i
+pointsInBridgeLoop (Point x y) Right' i = (Point x y) : pointsInBridgeLoop (Point (x+1) y) Right' i
+
+
+{-
 -- Combine eithers, with the end result being the first Left value found,
 -- or the last Right value found
 comb :: Either a b -> Either a b -> Either a b
@@ -104,11 +127,11 @@ validateBridges ((Bridge (Point x1 y1) (Point x2 y2) _):xs) islands
     | x1 == x2 && y1 == y2 = Left "Bridge must have two different points"
     | x1 /= x2 && y1 /= y2 = Left "Bridge must be horizontal or vertical"
     | otherwise            = validateBridges xs islands
+-}
 
 -- Valication includes:
---  * There is at least one island
---  * Making sure all bridges are verticle
---  * Making sure all bridges start and end on an island
+--  * Making sure all bridges start on an island and end on another island
+--  * Make sure no bridges are intersecting
 --
 -- Checking for solved include:
 --  * Making sure no bridges overlap
