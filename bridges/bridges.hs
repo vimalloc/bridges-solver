@@ -71,23 +71,39 @@ pointBetweenBridge (Point x' y') (Bridge (Point x1 y1) (Point x2 y2) _)
 comb :: Either a b -> Either a b -> Either a b
 comb (Left x) _ = Left x
 comb _ (Left x) = Left x
-comb e1 e2             = e2
+comb e1 e2      = e2
 
 
+-- TODO have validateIslands return islands if it is valid, and monads or fmap
+--      to pass that to validateBridges (maybe?). Ex:
+--
+--        Left "Foo"  >>= (\x -> return "New")
+--        (\x -> "New") <$> Right "Foo"
 validatePuzzle :: [Island] -> [Bridge] -> Either String String
-validatePuzzle i b = validIslands `comb` validBridges `comb` Right "Puzzle is valid"
-    where validIslands = validateIslands i
-          validBridges = Right "valid"
+validatePuzzle i b = validateIslands i `comb` validateBridges b i `comb` Right "Puzzle is valid"
 
 
 validateIslands :: [Island] -> Either String String
-validateIslands i
+validateIslands islands
     | listLength < 2          = Left "Must have at least two islands in a puzzle"
     | listLength /= setLength = Left "Puzzle contains duplicate islands at the same point"
     | otherwise               = Right "Islands are valid"
-    where points = [Point 0 0, Point 0 1]  -- TODO
+    where points     = map (\ (Island p _) -> p) islands
           listLength = length points
           setLength  = length $ Set.fromList points
+
+
+-- TODO use fold or filter here to check for errors instead of recursion,
+--      need to keep the whole list so we can check for overlapping points.
+--      PS. lets do that by making a list of all points between all bridges,
+--      and converting it to a set. If the numbers don't match, there are
+--      duplicates
+validateBridges :: [Bridge] -> [Island] -> Either String String
+validateBridges [] _ = Right "Bridges are valid"
+validateBridges ((Bridge (Point x1 y1) (Point x2 y2) _):xs) islands
+    | x1 == x2 && y1 == y2 = Left "Bridge must have two different points"
+    | x1 /= x2 && y1 /= y2 = Left "Bridge must be horizontal or vertical"
+    | otherwise            = validateBridges xs islands
 
 -- Valication includes:
 --  * There is at least one island
