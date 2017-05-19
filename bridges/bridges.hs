@@ -7,45 +7,76 @@ import qualified Data.Set as Set
 -- Up' and Down' use the ticks to stay consistant with Left' and Right'.
 data BridgeValue = Single | Double deriving (Eq, Show, Ord)
 data BridgeDirection = Up' | Down' | Left' | Right' deriving (Eq, Show, Ord)
-data Bridge = Bridge BridgeDirection BridgeValue deriving (Show, Ord)
+data Bridge = Bridge BridgeDirection BridgeValue deriving (Eq, Show)
 
 data Point = Point Int Int deriving (Eq, Show, Ord)
 data IslandValue = One | Two | Three | Four | Five | Six | Seven | Eight deriving (Eq, Show, Ord)
 data Island = Island Point IslandValue (Set.Set Bridge) deriving (Eq, Show, Ord)
 
--- Define our own equality test here. We are using a set of bridges for the
+-- Define our own ordering test here. We are using a set of bridges for the
 -- island, and we don't care if the bridge is a single or double there, only
 -- what direction it is leaving the island from. This will insure we cannot
--- have duplicate bridges on an island without any runtime checks
-instance Eq Bridge where
-    (Up' _) == (Up' _)       = True
-    (Down' _) == (Down' _)   = True
-    (Left' _) == (Left' _)   = True
-    (Right' _) == (Right' _) = True
-    _ == _                   = False
+-- have duplicate bridges on an island without any addition checks on our part
+instance Ord Bridge where
+    (Bridge d1 _) `compare` (Bridge d2 _) = d1 `compare` d2
 
--- TODO any way I could encode no equilviant bridges in here? Ie, two bridges
---      that start connect the same two islands, but start at different islands?
 
--- TODO add bridges as data inside the island
---      * This will insure at the type system level that all bridges are attached to an island
---      * How to prevent duplicate bridges? Sets instead of list? Would need to update the
---        Eq deriving to have it just be the same location instead of location and value,
---        but this would allow me to guarentee to duplicates, again at the type system
---      * Neec to figure out best way to check both bridges coming into and going
---        out of an island when I'm solving it. This still seems like the big setback,
---        but the other benefits seem like it would probably make this hassle worth it
+getX :: Point -> Int
+getX (Point x _) = x
+
+getY :: Point -> Int
+getY (Point _ y) = y
+
+getIslandPoint :: Island -> Point
+getIslandPoint (Island p _ _) = p
+
+getBridges :: Island -> (Set.Set Bridge)
+getBridges (Island _ _ b) = b
+
+getIslandX :: Island -> Int
+getIslandX = getX . getIslandPoint
+
+getIslandY :: Island -> Int
+getIslandY = getY . getIslandPoint
+
+getIslandPoints :: [Island] -> [Point]
+getIslandPoints = map getIslandPoint
+
+islandsMaxX :: [Island] -> Int
+islandsMaxX = maximum . map getX . getIslandPoints
+
+islandsMaxY :: [Island] -> Int
+islandsMaxY = maximum . map getY . getIslandPoints
+
+incPoint :: Bridge -> Point -> Point
+incPoint (Bridge Up' _) (Point x y)    = (Point x (y-1))
+incPoint (Bridge Down' _) (Point x y)  = (Point x (y+1))
+incPoint (Bridge Left' _) (Point x y)  = (Point (x-1) y)
+incPoint (Bridge Right' _) (Point x y) = (Point (x+1) y)
+
+
+pointCouldExistOnBridge :: Point -> Island -> Bridge -> Bool
+pointCouldExistOnBridge p i b = case b of
+                                    (Bridge Up' _)    -> x == x' && y < y'
+                                    (Bridge Down' _)  -> x == x' && y > y'
+                                    (Bridge Left' _)  -> x < x' && y == y'
+                                    (Bridge Right' _) -> x > x' && y == y'
+    where x  = getX p
+          y  = getY p
+          x' = getIslandX i
+          y' = getIslandY i
+
 
 
 islandToChar :: Island -> Char
-islandToChar (Island _ One)   = '1'
-islandToChar (Island _ Two)   = '2'
-islandToChar (Island _ Three) = '3'
-islandToChar (Island _ Four)  = '4'
-islandToChar (Island _ Five)  = '5'
-islandToChar (Island _ Six)   = '6'
-islandToChar (Island _ Seven) = '7'
-islandToChar (Island _ Eight) = '8'
+islandToChar (Island _ One _)   = '1'
+islandToChar (Island _ Two _)   = '2'
+islandToChar (Island _ Three _) = '3'
+islandToChar (Island _ Four _)  = '4'
+islandToChar (Island _ Five _)  = '5'
+islandToChar (Island _ Six _)   = '6'
+islandToChar (Island _ Seven _) = '7'
+islandToChar (Island _ Eight _) = '8'
 
 
 bridgeToChar :: Bridge -> Char
@@ -60,74 +91,55 @@ bridgeToChar (Bridge Right' Double) = '═'
 
 
 pprint :: [Island] -> String
-pprint islands = pprintLoop 0 0 xMax yMax islands
-    where xMax = maximum . map (\(Island (Point x _) _ _) -> x) $ islands
-          yMax = maximum . map (\(Island (Point _ y) _ _) -> y) $ islands
+pprint islands = pprintLoop 0 0 islands
+    where xMax = islandsMaxX islands
+          yMax = islandsMaxY islands
 
-
-pprintLoop :: Int -> Int -> Int -> Int -> [Island] -> String
-pprintLoop x y xMax yMax islands bridges
-    | y > yMax  = ""
-    | x > xMax  = "\n" ++ pprintLoop 0 (y+1) xMax yMax islands
-    | otherwise = c : " " ++ pprintLoop (x+1) y xMax yMax islands
-    where i = islandAtPoint (Point x y) islands
-          b = bridgeAtPoint (Point x y) islands
-          c = fromJust $ (islandToChar <$> i) <|> (bridgeToChar <$> b) <|> Just ' '
+          pprintLoop :: Int -> Int -> [Island] -> String
+          pprintLoop x y islands
+              | y > yMax  = ""
+              | x > xMax  = "\n" ++ pprintLoop 0 (y+1) islands
+              | otherwise = c : " " ++ pprintLoop (x+1) y islands
+              where i = islandAtPoint (Point x y) islands
+                    b = bridgeAtPoint (Point x y) islands
+                    c = fromJust $ (islandToChar <$> i) <|> (bridgeToChar <$> b) <|> Just ' '
 
 
 islandAtPoint :: Point -> [Island] -> Maybe Island
-islandAtPoint p' = find (\(Island p _) -> p == p')
+islandAtPoint p = find (\ i -> getIslandPoint i == p)
 
 
--- TODO pull bridge out of result somehow...
+-- I dont really like this function. Currently I'm using nested functions so
+-- that I don't have to pass xMax, yMax, and islandPoints all over place
+-- (or re-cacluate them unnecessarily). I dunno, maybe this is fine, but
+-- something about it rubs me the wrong way... One idea I had was instead
+-- of passing the bridge to pointOnBridgeLoop, I could just pass a clouse of
+-- the incPoint function that already had the direction in it? I dunno, maybe
+-- that would actually make it more confusing. Think on it.
 bridgeAtPoint :: Point -> [Island] -> Maybe Bridge
-bridgeAtPoint p i = find (pointBetweenBridge p i) i
+bridgeAtPoint p i = foldl (\acc x -> acc <|> (bridgeAtPointFromIsland x)) Nothing i
+    where xMax = islandsMaxX i
+          yMax = islandsMaxY i
+          islandPoints = Set.fromList $ map (\ (Island p _ _) -> p) i
 
+          bridgeAtPointFromIsland :: Island -> Maybe Bridge
+          bridgeAtPointFromIsland i = foldl (\acc b -> acc <|> pointOnBridge p i b) Nothing bridges
+              where bridges = getBridges i
 
--- TODO actually see if the point exists in this bridge
-pointBetweenBridge :: Point -> [Island] -> Island -> Bool
-pointBetweenBridge (Point x1 y1) _ (Island (Point x2 y2) _ (Set.Set Bridge Up _))
-    | x1 == x2 && y1 < y2 = True
-    | otherwise           = False
-pointBetweenBridge (Point x1 y1) _ (Island (Point x2 y2) _ (Set.Set Bridge Down _))
-    | x1 == x2 && y1 > y2 = True
-    | otherwise           = False
-pointBetweenBridge (Point x1 y1) _ (Island (Point x2 y2) _ (Set.Set Bridge Left _))
-    | x1 < x2 && y1 == y2 = True
-    | otherwise           = False
-pointBetweenBridge (Point x1 y1) _ (Island (Point x2 y2) _ (Set.Set Bridge Right _))
-    | x1 > x2 && y1 == y2 = True
-    | otherwise           = False
+          -- Shortcircuit the computation if the point couldn't possible be on this bridge
+          pointOnBridge :: Point -> Island -> Bridge -> Maybe Bridge
+          pointOnBridge target island bridge
+              | (pointCouldExistOnBridge target island bridge) == False = Nothing
+              | otherwise = pointOnBridgeLoop startPoint target bridge
+              where startPoint = incPoint bridge (getIslandPoint island)
 
-
---pointBetweenBridge point islands = point `elem` bridgePoints
---    where bridgePoints = pointsInBridge bridge islands
-
-
--- Remember, we are says Pont 0 0 is the top left point of the puzzle,
--- thus up and down here seem reversed
-pointsInBridge :: Bridge -> [Island] -> [Point]
-pointsInBridge b i = case b of
-                         (Bridge (Point x y) Up' _)    -> pointsInBridgeLoop (Point x (y-1)) Up' island_points
-                         (Bridge (Point x y) Down' _)  -> pointsInBridgeLoop (Point x (y+1)) Down' island_points
-                         (Bridge (Point x y) Left' _)  -> pointsInBridgeLoop (Point (x-1) y) Left' island_points
-                         (Bridge (Point x y) Right' _) -> pointsInBridgeLoop (Point (x+1) y) Right' island_points
-    where island_points = Set.fromList $ map (\ (Island p _) -> p) i
-          xMax          = maximum . map (\(Island (Point x _) _) -> x) $ i
-          yMax          = maximum . map (\(Island (Point _ y) _) -> y) $ i
-
-
--- TODO account for possible infinate loop here. Pass in xmax and ymax and verify
---      the bridge doesn't go past either of those two points
-pointsInBridgeLoop :: Point -> BridgeDirection -> Set.Set Point -> [Point]
-pointsInBridgeLoop p _ island_points
-    | p `Set.member` island_points = []
-pointsInBridgeLoop (Point x y) Up' i    = (Point x y) : pointsInBridgeLoop (Point x (y-1)) Up' i
-pointsInBridgeLoop (Point x y) Down' i  = (Point x y) : pointsInBridgeLoop (Point x (y+1)) Down' i
-pointsInBridgeLoop (Point x y) Left' i  = (Point x y) : pointsInBridgeLoop (Point (x-1) y) Left' i
-pointsInBridgeLoop (Point x y) Right' i = (Point x y) : pointsInBridgeLoop (Point (x+1) y) Right' i
-
-
+          pointOnBridgeLoop :: Point -> Point -> Bridge -> Maybe Bridge
+          pointOnBridgeLoop currentP targetP bridge
+              | currentP `Set.member` islandPoints = Nothing
+              | (getX currentP) > xMax = Nothing
+              | (getY currentP) > yMax = Nothing
+              | currentP == targetP    = Just bridge
+              | otherwise              = pointOnBridgeLoop (incPoint bridge currentP) targetP bridge
 {-
 -- Combine eithers, with the end result being the first Left value found,
 -- or the last Right value found
@@ -170,7 +182,8 @@ validateBridges ((Bridge (Point x1 y1) (Point x2 y2) _):xs) islands
 -}
 
 -- Valication includes:
---  * Making sure all bridges start on an island and end on another island
+--  * Making sure all bridges connect to another island
+--  * Removing duplicate bridges?
 --  * Make sure no bridges are intersecting
 --
 -- Checking for solved include:
