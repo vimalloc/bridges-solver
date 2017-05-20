@@ -1,7 +1,9 @@
 import Data.List
 import Data.Maybe
+import Data.Foldable
 import Control.Applicative
 import qualified Data.Set as Set
+
 
 -- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
 -- Up' and Down' use the ticks to stay consistant with Left' and Right'.
@@ -9,9 +11,16 @@ data BridgeValue = Single | Double deriving (Eq, Show, Ord)
 data BridgeDirection = Up' | Down' | Left' | Right' deriving (Eq, Show, Ord)
 data Bridge = Bridge BridgeDirection BridgeValue deriving (Eq, Show)
 
-data Point = Point Int Int deriving (Eq, Show, Ord)
+data Point = Point {
+                     getX :: Int,
+                     getY :: Int
+                    } deriving (Eq, Show, Ord)
 data IslandValue = One | Two | Three | Four | Five | Six | Seven | Eight deriving (Eq, Show, Ord)
-data Island = Island Point IslandValue (Set.Set Bridge) deriving (Eq, Show, Ord)
+data Island = Island {
+                      getIslandPoint :: Point,
+                      getIslandValue :: IslandValue,
+                      getIslandBridges :: (Set.Set Bridge)
+                     } deriving (Eq, Show, Ord)
 
 -- Define our own ordering test here. We are using a set of bridges for the
 -- island, and we don't care if the bridge is a single or double there, only
@@ -21,32 +30,17 @@ instance Ord Bridge where
     (Bridge d1 _) `compare` (Bridge d2 _) = d1 `compare` d2
 
 
-getX :: Point -> Int
-getX (Point x _) = x
-
-getY :: Point -> Int
-getY (Point _ y) = y
-
-getIslandPoint :: Island -> Point
-getIslandPoint (Island p _ _) = p
-
-getBridges :: Island -> (Set.Set Bridge)
-getBridges (Island _ _ b) = b
-
 getIslandX :: Island -> Int
 getIslandX = getX . getIslandPoint
 
 getIslandY :: Island -> Int
 getIslandY = getY . getIslandPoint
 
-getIslandPoints :: [Island] -> [Point]
-getIslandPoints = map getIslandPoint
-
 islandsMaxX :: [Island] -> Int
-islandsMaxX = maximum . map getX . getIslandPoints
+islandsMaxX = maximum . map getX . map getIslandPoint
 
 islandsMaxY :: [Island] -> Int
-islandsMaxY = maximum . map getY . getIslandPoints
+islandsMaxY = maximum . map getY . map getIslandPoint
 
 incPoint :: Bridge -> Point -> Point
 incPoint (Bridge Up' _) (Point x y)    = (Point x (y-1))
@@ -65,7 +59,6 @@ pointCouldExistOnBridge p i b = case b of
           y  = getY p
           x' = getIslandX i
           y' = getIslandY i
-
 
 
 islandToChar :: Island -> Char
@@ -102,7 +95,7 @@ pprint islands = pprintLoop 0 0 islands
               | otherwise = c : " " ++ pprintLoop (x+1) y islands
               where i = islandAtPoint (Point x y) islands
                     b = bridgeAtPoint (Point x y) islands
-                    c = fromJust $ (islandToChar <$> i) <|> (bridgeToChar <$> b) <|> Just ' '
+                    c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
 
 
 islandAtPoint :: Point -> [Island] -> Maybe Island
@@ -117,22 +110,22 @@ islandAtPoint p = find (\ i -> getIslandPoint i == p)
 -- the incPoint function that already had the direction in it? I dunno, maybe
 -- that would actually make it more confusing. Think on it.
 bridgeAtPoint :: Point -> [Island] -> Maybe Bridge
-bridgeAtPoint p i = foldl (\acc x -> acc <|> (bridgeAtPointFromIsland x)) Nothing i
+bridgeAtPoint p i = asum . map bridgeAtPointFromIsland $ i
     where xMax = islandsMaxX i
           yMax = islandsMaxY i
-          islandPoints = Set.fromList $ map (\ (Island p _ _) -> p) i
+          islandPoints = Set.fromList . map getIslandPoint $ i
 
           bridgeAtPointFromIsland :: Island -> Maybe Bridge
-          bridgeAtPointFromIsland i = foldl (\acc b -> acc <|> pointOnBridge p i b) Nothing bridges
-              where bridges = getBridges i
+          bridgeAtPointFromIsland i = asum . Set.map (pointOnBridge p i) $ getIslandBridges i
 
           -- Shortcircuit the computation if the point couldn't possible be on this bridge
           pointOnBridge :: Point -> Island -> Bridge -> Maybe Bridge
           pointOnBridge target island bridge
-              | (pointCouldExistOnBridge target island bridge) == False = Nothing
+              | not (pointCouldExistOnBridge target island bridge) = Nothing
               | otherwise = pointOnBridgeLoop startPoint target bridge
               where startPoint = incPoint bridge (getIslandPoint island)
 
+          -- TODO could I make this a fold too?
           pointOnBridgeLoop :: Point -> Point -> Bridge -> Maybe Bridge
           pointOnBridgeLoop currentP targetP bridge
               | currentP `Set.member` islandPoints = Nothing
