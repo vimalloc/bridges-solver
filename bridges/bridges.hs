@@ -150,6 +150,30 @@ bridgeAtPoint point allIslands = asum . map getBridgeAtPointFromIsland $ allIsla
         couldBeOnBridge = pointCouldExistOnBridge point island bridge
         bridgePoints = getBridgePoints island bridge allIslands
 
+-- TODO make this tail recursive
+-- TODO could we do this same thing with Applicative instead of monads?
+-- TODO verify there are no duplicate island points
+createIslands :: [(Int, Int, Int)] -> Either String [Island]
+createIslands []           = Right []
+createIslands ((x,y,v):xs) = do
+    value       <- intToIslandValue v
+    let point   = Point x y
+    let bridges = Set.fromList []
+    let island  = Island point value bridges
+    nextIsland  <- createIslands xs
+    return $ island : nextIsland
+
+intToIslandValue :: Int -> Either String IslandValue
+intToIslandValue 1 = Right One
+intToIslandValue 2 = Right Two
+intToIslandValue 3 = Right Three
+intToIslandValue 4 = Right Four
+intToIslandValue 5 = Right Five
+intToIslandValue 6 = Right Six
+intToIslandValue 7 = Right Seven
+intToIslandValue 8 = Right Eight
+intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
+
 -- Import bridge from file/stdin (what format do I want for this?)
 --   * Just the points of islands
 --
