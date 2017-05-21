@@ -73,6 +73,27 @@ pointCouldExistOnBridge p i b = let x  = getX p
                                        (Bridge Left' _)  -> x < x' && y == y'
                                        (Bridge Right' _) -> x > x' && y == y'
 
+getBridgePoints :: Island -> Bridge -> [Island] -> [Point]
+getBridgePoints island bridge allIslands
+    | not bridgeInIsland = error "Bridge not on island"
+    | otherwise          = getBridgePointsLoop startPoint incPoint
+  where
+    bridgeInIsland = bridge `Set.member` (getIslandBridges island)
+    xMax           = islandsMaxX allIslands
+    yMax           = islandsMaxY allIslands
+    islandPoints   = Set.fromList . map getIslandPoint $ allIslands
+    incPoint       = traverseBridge bridge
+    startPoint     = incPoint $ getIslandPoint island
+
+    getBridgePointsLoop :: Point -> (Point -> Point) -> [Point]
+    getBridgePointsLoop p incPoint
+        | (getX p) > xMax             = []  -- TODO should this be an error?
+        | (getY p) > yMax             = []  -- TODO should this be an error?
+        | p `Set.member` islandPoints = []
+        | otherwise                   = p : getBridgePointsLoop nextP incPoint
+      where
+        nextP = incPoint p
+
 islandToChar :: Island -> Char
 islandToChar (Island _ One _)   = '1'
 islandToChar (Island _ Two _)   = '2'
@@ -113,36 +134,19 @@ islandAtPoint :: Point -> [Island] -> Maybe Island
 islandAtPoint p = find (\ i -> getIslandPoint i == p)
 
 bridgeAtPoint :: Point -> [Island] -> Maybe Bridge
-bridgeAtPoint p i = asum . map bridgeAtPointFromIsland $ i
+bridgeAtPoint point allIslands = asum . map getBridgeAtPointFromIsland $ allIslands
   where
-    xMax = islandsMaxX i
-    yMax = islandsMaxY i
-    islandPoints = Set.fromList . map getIslandPoint $ i
-
-    bridgeAtPointFromIsland :: Island -> Maybe Bridge
-    bridgeAtPointFromIsland i = asum . Set.map (pointOnBridge p i) $ getIslandBridges i
-
-    pointOnBridge :: Point -> Island -> Bridge -> Maybe Bridge
-    pointOnBridge target island bridge
-        | not (pointCouldExistOnBridge target island bridge) = Nothing
-        | pointOnBridgeLoop startPoint target indPoint       = Just bridge
-        | otherwise                                          = Nothing
+    getBridgeAtPointFromIsland :: Island -> Maybe Bridge
+    getBridgeAtPointFromIsland i = find (pointOnBridge i) bridges
       where
-        incPoint = traverseBridge bridge
-        startPoint = incPoint $ getIslandPoint island
+        bridges = getIslandBridges i
 
-    -- TODO could I make this a fold too?
-    --foldl (\x acc -> acc || pointOnBridgeLoop (x targetP)) $ map traverseBridge startPoint
-    -- TODO name no longer fits very well...
-    pointOnBridgeLoop :: Point -> Point -> (Point -> Point) -> Bool
-    pointOnBridgeLoop currentP targetP incPoint
-        | currentP `Set.member` islandPoints = False
-        | (getX currentP) > xMax = False
-        | (getY currentP) > yMax = False
-        | currentP == targetP    = True
-        | otherwise              = pointOnBridgeLoop nextPoint targetP incPoint
+    pointOnBridge :: Island -> Bridge -> Bool
+    pointOnBridge island bridge = couldBeOnBridge && point `elem` bridgePoints
       where
-        nextPoint = incPoint currentP
+        couldBeOnBridge = pointCouldExistOnBridge point island bridge
+        bridgePoints = getBridgePoints island bridge allIslands
+
 {-
 -- Combine eithers, with the end result being the first Left value found,
 -- or the last Right value found
