@@ -15,7 +15,10 @@ data BridgeDirection = Up'
 data BridgeValue = Single
                  | Double deriving (Eq, Show, Ord)
 
-data Bridge = Bridge BridgeDirection BridgeValue deriving (Eq, Show)
+data Bridge = Bridge
+    { getBridgeDirection :: !BridgeDirection
+    , getBridgeValue     :: !BridgeValue
+    } deriving (Eq, Show)
 
 data IslandValue = One
                  | Two
@@ -32,8 +35,8 @@ data Point = Point
     } deriving (Eq, Show, Ord)
 
 data Island = Island
-    { getIslandPoint :: !Point
-    , getIslandValue :: !IslandValue
+    { getIslandPoint   :: !Point
+    , getIslandValue   :: !IslandValue
     , getIslandBridges :: !(Set.Set Bridge)
     } deriving (Eq, Show, Ord)
 
@@ -67,11 +70,11 @@ pointCouldExistOnBridge p i b = let x  = getX p
                                     y  = getY p
                                     x' = getIslandX i
                                     y' = getIslandY i
-                                in case b of
-                                       (Bridge Up' _)    -> x == x' && y < y'
-                                       (Bridge Down' _)  -> x == x' && y > y'
-                                       (Bridge Left' _)  -> x < x' && y == y'
-                                       (Bridge Right' _) -> x > x' && y == y'
+                                in case getBridgeDirection b of
+                                       Up'    -> x == x' && y < y'
+                                       Down'  -> x == x' && y > y'
+                                       Left'  -> x < x' && y == y'
+                                       Right' -> x > x' && y == y'
 
 getBridgePoints :: Island -> Bridge -> [Island] -> [Point]
 getBridgePoints island bridge allIslands
@@ -147,53 +150,32 @@ bridgeAtPoint point allIslands = asum . map getBridgeAtPointFromIsland $ allIsla
         couldBeOnBridge = pointCouldExistOnBridge point island bridge
         bridgePoints = getBridgePoints island bridge allIslands
 
-{-
--- Combine eithers, with the end result being the first Left value found,
--- or the last Right value found
-comb :: Either a b -> Either a b -> Either a b
-comb (Left x) _ = Left x
-comb _ (Left x) = Left x
-comb e1 e2      = e2
-
-
--- TODO have validateIslands return islands if it is valid, and monads or fmap
---      to pass that to validateBridges (maybe?). Ex:
+-- Import bridge from file/stdin (what format do I want for this?)
+--   * Just the points of islands
 --
---        Left "Foo"  >>= (\x -> return "New")
---        (\x -> "New") <$> Right "Foo"
-validatePuzzle :: [Island] -> [Bridge] -> Either String String
-validatePuzzle i b = validateIslands i `comb` validateBridges b i `comb` Right "Puzzle is valid"
-
-
-validateIslands :: [Island] -> Either String String
-validateIslands islands
-    | listLength < 2          = Left "Must have at least two islands in a puzzle"
-    | listLength /= setLength = Left "Puzzle contains duplicate islands at the same point"
-    | otherwise               = Right "Islands are valid"
-    where points     = map (\ (Island p _) -> p) islands
-          listLength = length points
-          setLength  = length $ Set.fromList points
-
-
--- TODO use fold or filter here to check for errors instead of recursion,
---      need to keep the whole list so we can check for overlapping points.
---      PS. lets do that by making a list of all points between all bridges,
---      and converting it to a set. If the numbers don't match, there are
---      duplicates
-validateBridges :: [Bridge] -> [Island] -> Either String String
-validateBridges [] _ = Right "Bridges are valid"
-validateBridges ((Bridge (Point x1 y1) (Point x2 y2) _):xs) islands
-    | x1 == x2 && y1 == y2 = Left "Bridge must have two different points"
-    | x1 /= x2 && y1 /= y2 = Left "Bridge must be horizontal or vertical"
-    | otherwise            = validateBridges xs islands
--}
-
--- Valication includes:
---  * Making sure all bridges connect to another island
---  * Removing duplicate bridges?
+-- Verify bridge is valid before allowing you to attempt to solve it:
+--  * At least two islands
+--  * Making sure all bridges connect to another island (don't go to infinity)
+--  * Make sure no island has more bridges coming to it
+--  * Removing duplicate bridges? (depends on how we allow importing of bridges)
 --  * Make sure no bridges are intersecting
 --
--- Checking for solved include:
+-- Attempt to solve the puzzle
 --  * Making sure no bridges overlap
---  * Making sure all islands have teh correct number of bridges coming from them
+--  * Making sure all islands have the correct number of bridges coming from them
 --  * Making sure all islands are connected
+--
+-- Have this module only expor
+--  * createIslands :: [Point] -> [Island]
+--  * solvePuzzle :: [Island] -> Maybe [Island]
+--  * ppring :: [Island] -> String
+--
+-- If I understnad the import/export system correctly, this will not allow
+-- users to modify the internals of the [Island] and create an invalid or
+-- impossible situation. I'm not sure if this is like java where they *really*
+-- can't modify the internals, or if it's like python where they are just
+-- encouraged not to. But either way, that should be good enough for this.
+--
+-- Finally, build another program on top of this which include the main
+-- function, imports this module, and fetches games from the puzzle bridges
+-- website, and solves them. All the IO stuff happens here
