@@ -117,22 +117,6 @@ bridgeToChar (Bridge Right' Single) = '―'
 bridgeToChar (Bridge Left' Double)  = '═'
 bridgeToChar (Bridge Right' Double) = '═'
 
-pprint :: [Island] -> String
-pprint islands = pprintLoop 0 0 islands
-  where
-    xMax = islandsMaxX islands
-    yMax = islandsMaxY islands
-
-    pprintLoop :: Int -> Int -> [Island] -> String
-    pprintLoop x y islands
-        | y > yMax  = ""
-        | x > xMax  = "\n" ++ pprintLoop 0 (y+1) islands
-        | otherwise = c : " " ++ pprintLoop (x+1) y islands
-      where
-        i = islandAtPoint (Point x y) islands
-        b = bridgeAtPoint (Point x y) islands
-        c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
-
 islandAtPoint :: Point -> [Island] -> Maybe Island
 islandAtPoint p = find (\ i -> getIslandPoint i == p)
 
@@ -150,29 +134,60 @@ bridgeAtPoint point allIslands = asum . map getBridgeAtPointFromIsland $ allIsla
         couldBeOnBridge = pointCouldExistOnBridge point island bridge
         bridgePoints = getBridgePoints island bridge allIslands
 
--- TODO make this tail recursive
--- TODO could we do this same thing with Applicative instead of monads?
--- TODO verify there are no duplicate island points
-createIslands :: [(Int, Int, Int)] -> Either String [Island]
-createIslands []           = Right []
-createIslands ((x,y,v):xs) = do
-    value       <- intToIslandValue v
-    let point   = Point x y
-    let bridges = Set.fromList []
-    let island  = Island point value bridges
-    nextIsland  <- createIslands xs
-    return $ island : nextIsland
+pprint :: [Island] -> String
+pprint islands = pprintLoop 0 0 islands
+  where
+    xMax = islandsMaxX islands
+    yMax = islandsMaxY islands
 
-intToIslandValue :: Int -> Either String IslandValue
-intToIslandValue 1 = Right One
-intToIslandValue 2 = Right Two
-intToIslandValue 3 = Right Three
-intToIslandValue 4 = Right Four
-intToIslandValue 5 = Right Five
-intToIslandValue 6 = Right Six
-intToIslandValue 7 = Right Seven
-intToIslandValue 8 = Right Eight
-intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
+    pprintLoop :: Int -> Int -> [Island] -> String
+    pprintLoop x y islands
+        | y > yMax  = ""
+        | x > xMax  = "\n" ++ pprintLoop 0 (y+1) islands
+        | otherwise = c : " " ++ pprintLoop (x+1) y islands
+      where
+        i = islandAtPoint (Point x y) islands
+        b = bridgeAtPoint (Point x y) islands
+        c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
+
+createIslands :: [(Int, Int, Int)] -> Either String [Island]
+createIslands i = do
+    islands <- createIslandsGo i
+    checkIslandDuplicates islands
+  where
+    createIslandsGo :: [(Int, Int, Int)] -> Either String [Island]
+    createIslandsGo []     = Right []
+    createIslandsGo (x:xs) = do
+        island     <- createIsland x
+        nextIsland <- createIslandsGo xs
+        return $ island : nextIsland
+
+    createIsland :: (Int, Int, Int) -> Either String Island
+    createIsland (x,y,v) = do
+        value <- intToIslandValue v
+        return $ Island (Point x y) value Set.empty
+
+    intToIslandValue :: Int -> Either String IslandValue
+    intToIslandValue 1 = Right One
+    intToIslandValue 2 = Right Two
+    intToIslandValue 3 = Right Three
+    intToIslandValue 4 = Right Four
+    intToIslandValue 5 = Right Five
+    intToIslandValue 6 = Right Six
+    intToIslandValue 7 = Right Seven
+    intToIslandValue 8 = Right Eight
+    intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
+
+    checkIslandDuplicates :: [Island] -> Either String [Island]
+    checkIslandDuplicates i
+        | hasDuplicates = Left "Multiple islands exist at the same point"
+        | otherwise     = Right i
+      where
+        islandPoints = map (getIslandPoint) i
+        listSize = length islandPoints
+        setSize = Set.size $ Set.fromList islandPoints
+        hasDuplicates = listSize /= setSize
+
 
 -- Import bridge from file/stdin (what format do I want for this?)
 --   * Just the points of islands
