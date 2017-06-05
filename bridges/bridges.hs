@@ -3,6 +3,7 @@ import Data.Maybe
 import Data.Foldable
 import Control.Applicative
 import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
 
 
 -- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
@@ -40,6 +41,10 @@ data Island = Island
     , getIslandBridges :: !(Set.Set Bridge)
     } deriving (Eq, Show, Ord)
 
+-- TODO should add a new data type that includes all the islands, xMax, yMax,
+--      and the islands as a set of points, so that I don't need to calculate
+--      those over and over again
+
 -- Define our own ordering test here. We are using a set of bridges for the
 -- island, and we don't care if the bridge is a single or double there, only
 -- what direction it is leaving the island from. This will insure we cannot
@@ -64,6 +69,29 @@ traverseBridge (Bridge Up' _) (Point x y)    = (Point x (y-1))
 traverseBridge (Bridge Down' _) (Point x y)  = (Point x (y+1))
 traverseBridge (Bridge Left' _) (Point x y)  = (Point (x-1) y)
 traverseBridge (Bridge Right' _) (Point x y) = (Point (x+1) y)
+
+-- TODO change this to BridgeDirection, don't need a full bridge here
+getRemoteIsland :: Island -> Bridge -> [Island] -> Maybe Island
+getRemoteIsland i b allIslands = getRemoteIslandLoop startPoint incPoint
+  where
+    xMax         = islandsMaxX allIslands
+    yMax         = islandsMaxY allIslands
+    incPoint     = traverseBridge b
+    startPoint   = incPoint $ getIslandPoint i
+    islandMap    = Map.fromList $ [(getIslandPoint i, i) | i <- allIslands]
+
+    getRemoteIslandLoop :: Point -> (Point -> Point) -> Maybe Island
+    getRemoteIslandLoop p incPoint
+        | (getX p > xMax) = Nothing
+        | (getX p < 0)    = Nothing
+        | (getY p > yMax) = Nothing
+        | (getY p < 0)    = Nothing
+        | otherwise       = case island of
+                                Just i  -> Just i
+                                Nothing -> getRemoteIslandLoop nextPoint incPoint
+      where
+        island    = p `Map.lookup` islandMap
+        nextPoint = incPoint p
 
 pointCouldExistOnBridge :: Point -> Island -> Bridge -> Bool
 pointCouldExistOnBridge p i b = let x  = getX p
