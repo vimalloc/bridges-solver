@@ -41,9 +41,12 @@ data Island = Island
     , getIslandBridges :: !(Set.Set Bridge)
     } deriving (Eq, Show, Ord)
 
--- TODO should add a new data type that includes all the islands, xMax, yMax,
---      and the islands as a set of points, so that I don't need to calculate
---      those over and over again
+data Game = Game
+    { getIslands :: ![Island]
+    , getXMax    :: !Int
+    , getYMax    :: !Int
+    , getIslandPointMap :: !(Map.Map Point Island)
+    } deriving (Eq, Show)
 
 -- Define our own ordering test here. We are using a set of bridges for the
 -- island, and we don't care if the bridge is a single or double there, only
@@ -145,8 +148,8 @@ bridgeToChar (Bridge Right' Single) = '―'
 bridgeToChar (Bridge Left' Double)  = '═'
 bridgeToChar (Bridge Right' Double) = '═'
 
-islandAtPoint :: Point -> [Island] -> Maybe Island
-islandAtPoint p = find (\ i -> getIslandPoint i == p)
+islandAtPoint :: Point -> Game -> Maybe Island
+islandAtPoint point game = point `Map.lookup` (getIslandPointMap game)
 
 bridgeAtPoint :: Point -> [Island] -> Maybe Bridge
 bridgeAtPoint point allIslands = asum . map getBridgeAtPointFromIsland $ allIslands
@@ -162,26 +165,27 @@ bridgeAtPoint point allIslands = asum . map getBridgeAtPointFromIsland $ allIsla
         couldBeOnBridge = pointCouldExistOnBridge point island bridge
         bridgePoints = getBridgePoints island bridge allIslands
 
-pprint :: [Island] -> String
-pprint islands = pprintLoop 0 0 islands
+pprint :: Game -> String
+pprint game = pprintLoop 0 0 game
   where
-    xMax = islandsMaxX islands
-    yMax = islandsMaxY islands
-
-    pprintLoop :: Int -> Int -> [Island] -> String
-    pprintLoop x y islands
-        | y > yMax  = ""
-        | x > xMax  = "\n" ++ pprintLoop 0 (y+1) islands
-        | otherwise = c : " " ++ pprintLoop (x+1) y islands
+    pprintLoop :: Int -> Int -> Game -> String
+    pprintLoop x y game
+        | y > (getYMax game)  = ""
+        | x > (getXMax game)  = "\n" ++ pprintLoop 0 (y+1) game
+        | otherwise = c : " " ++ pprintLoop (x+1) y game
       where
-        i = islandAtPoint (Point x y) islands
-        b = bridgeAtPoint (Point x y) islands
+        i = islandAtPoint (Point x y) game
+        b = bridgeAtPoint (Point x y) $ getIslands game
         c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
 
-createIslands :: [(Int, Int, Int)] -> Either String [Island]
+createIslands :: [(Int, Int, Int)] -> Either String Game
 createIslands i = do
     islands <- createIslandsGo i
     checkIslandDuplicates islands
+    let xMax = islandsMaxX islands
+    let yMax = islandsMaxY islands
+    let islandMap = Map.fromList $ [(getIslandPoint i, i) | i <- islands]
+    return (Game islands xMax yMax islandMap)
   where
     createIslandsGo :: [(Int, Int, Int)] -> Either String [Island]
     createIslandsGo []     = Right []
