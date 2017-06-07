@@ -2,9 +2,9 @@ import Data.List
 import Data.Maybe
 import Data.Foldable
 import Control.Applicative
+import Control.Monad
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
-
 
 -- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
 -- Up' and Down' use the ticks to stay consistant with Left' and Right'.
@@ -171,12 +171,14 @@ pprint game = pprintLoop 0 0 game
 
 createIslands :: [(Int, Int, Int)] -> Either String Game
 createIslands i = do
-    islands <- createIslandsGo i
-    checkIslandDuplicates islands
+    islands <- createIslandsGo i  -- Can I make this a map instead?
     let xMax = islandsMaxX islands
     let yMax = islandsMaxY islands
-    let islandMap = Map.fromList $ [(getIslandPoint i, i) | i <- islands]
-    return (Game islands xMax yMax islandMap)
+    let iMap = Map.fromList $ [(getIslandPoint i, i) | i <- islands]
+    let game = Game islands xMax yMax iMap
+    when (hasDuplicateIslands game) $ Left "Multiple islands exist at the same point"
+    when (hasNoSpaceForBridges game) $ Left "Two islands are directly next to each other"
+    return game
   where
     createIslandsGo :: [(Int, Int, Int)] -> Either String [Island]
     createIslandsGo []     = Right []
@@ -201,36 +203,46 @@ createIslands i = do
     intToIslandValue 8 = Right Eight
     intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
 
-    checkIslandDuplicates :: [Island] -> Either String [Island]
-    checkIslandDuplicates i
-        | hasDuplicates = Left "Multiple islands exist at the same point"
-        | otherwise     = Right i
+    hasDuplicateIslands :: Game -> Bool
+    hasDuplicateIslands game = listSize /= setSize
       where
-        islandPoints = map (getIslandPoint) i
-        listSize = length islandPoints
-        setSize = Set.size $ Set.fromList islandPoints
-        hasDuplicates = listSize /= setSize
+        listSize = length $ getIslands game
+        setSize  = Map.size $ getIslandPointMap game
+
+    hasNoSpaceForBridges :: Game -> Bool
+    hasNoSpaceForBridges game = any hasNoSpaceForBridge $ getIslands game
+      where
+        hasNoSpaceForBridge :: Island -> Bool
+        hasNoSpaceForBridge island
+            | up `Map.member`    points = True
+            | down `Map.member`  points = True
+            | left `Map.member`  points = True
+            | right `Map.member` points = True
+            | otherwise                 = False
+          where
+            x      = getX . getIslandPoint $ island
+            y      = getY . getIslandPoint $ island
+            up     = Point x (y-1)
+            down   = Point x (y+1)
+            left   = Point (x-1) y
+            right  = Point (x+1) y
+            points = getIslandPointMap game
 
 
--- Import bridge from file/stdin (what format do I want for this?)
---   * Just the points of islands
+-- TODO does it actually make sense to return the same, unmodified islands here?
+--checkSpaceForBridges :: Island -> Either String Island
 --
--- Verify bridge is valid before allowing you to attempt to solve it:
---  * At least two islands
---  * Making sure all bridges connect to another island (don't go to infinity)
---  * Make sure no island has more bridges coming to it
---  * Removing duplicate bridges? (depends on how we allow importing of bridges)
---  * Make sure no bridges are intersecting
---
+
+
 -- Attempt to solve the puzzle
 --  * Making sure no bridges overlap
 --  * Making sure all islands have the correct number of bridges coming from them
 --  * Making sure all islands are connected
 --
 -- Have this module only expor
---  * createIslands :: [Point] -> [Island]
---  * solvePuzzle :: [Island] -> Maybe [Island]
---  * ppring :: [Island] -> String
+--  * createGame :: [Point] -> Game
+--  * solvePuzzle :: Game -> Maybe Game
+--  * ppring :: Game -> String
 --
 -- If I understnad the import/export system correctly, this will not allow
 -- users to modify the internals of the [Island] and create an invalid or
