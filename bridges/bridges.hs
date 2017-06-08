@@ -42,8 +42,7 @@ data Island = Island
     } deriving (Eq, Show, Ord)
 
 data Game = Game
-    { getIslands :: ![Island]
-    , getXMax    :: !Int
+    { getXMax    :: !Int
     , getYMax    :: !Int
     , getIslandPointMap :: !(Map.Map Point Island)
     } deriving (Eq, Show)
@@ -74,6 +73,15 @@ bridgeToChar (Bridge Left' Single)  = '―'
 bridgeToChar (Bridge Right' Single) = '―'
 bridgeToChar (Bridge Left' Double)  = '═'
 bridgeToChar (Bridge Right' Double) = '═'
+
+reverseBridge :: Bridge -> Bridge
+reverseBridge (Bridge Up' val)    = Bridge Down' val
+reverseBridge (Bridge Down' val)  = Bridge Up' val
+reverseBridge (Bridge Left' val)  = Bridge Right' val
+reverseBridge (Bridge Right' val) = Bridge Left' val
+
+getIslands :: Game -> [Island]
+getIslands game = Map.elems $ getIslandPointMap game
 
 getIslandX :: Island -> Int
 getIslandX = getX . getIslandPoint
@@ -175,8 +183,8 @@ createIslands i = do
     let xMax = islandsMaxX islands
     let yMax = islandsMaxY islands
     let iMap = Map.fromList $ [(getIslandPoint i, i) | i <- islands]
-    let game = Game islands xMax yMax iMap
-    when (hasDuplicateIslands game) $ Left "Multiple islands exist at the same point"
+    let game = Game xMax yMax iMap
+    when (hasDuplicateIslands game islands) $ Left "Multiple islands exist at the same point"
     when (hasNoSpaceForBridges game) $ Left "Two islands are directly next to each other"
     return game
   where
@@ -203,10 +211,10 @@ createIslands i = do
     intToIslandValue 8 = Right Eight
     intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
 
-    hasDuplicateIslands :: Game -> Bool
-    hasDuplicateIslands game = listSize /= setSize
+    hasDuplicateIslands :: Game -> [Island] -> Bool
+    hasDuplicateIslands game islands = listSize /= setSize
       where
-        listSize = length $ getIslands game
+        listSize = length islands
         setSize  = Map.size $ getIslandPointMap game
 
     hasNoSpaceForBridges :: Game -> Bool
@@ -228,10 +236,43 @@ createIslands i = do
             right  = Point (x+1) y
             points = getIslandPointMap game
 
-
--- TODO does it actually make sense to return the same, unmodified islands here?
---checkSpaceForBridges :: Island -> Either String Island
+-- TODO account for crossing bridges here?
 --
+-- We do some trickery here. Instead of adding the bridge just to this
+-- island, we also add the inverse of this bridge to the remote island.
+-- For example, if we had to islands we wanted to connect with a bridge
+-- like this:
+-- 1       2
+-- at the result of this call, we could have it look like:
+-- 1->   <-2
+-- This allows us to to very quickly calculate how many bridges are in an
+-- island (without having to iterative over all the other islands) at the
+-- expense of a little extra space and a slighly more complicated schema
+addBridge :: Game -> Island -> Bridge -> Game
+addBridge game island bridge = case remoteIsland of
+                                   Nothing -> error "Bridge would not connect to an island"
+                                   Just _  -> newGame
+  where
+    remoteIsland = getRemoteIsland island (getBridgeDirection bridge) game
+    remoteBridge = reverseBridge bridge
+    newIsland    = island `addBridgeToIsland` bridge
+    newRemote    = (fromJust remoteIsland) `addBridgeToIsland` remoteBridge
+    tmpGame      = game `updateIslandInGame` newIsland
+    newGame      = tmpGame `updateIslandInGame` newRemote
+
+    addBridgeToIsland :: Island -> Bridge -> Island
+    addBridgeToIsland (Island p v b) bridge
+        | bridgeInIsland = error "Island already has a bridge in this direction"
+        | otherwise      = Island p v newBridges
+      where
+        bridgeInIsland = bridge `Set.member` b
+        newBridges     = bridge `Set.insert` b
+
+    updateIslandInGame :: Game -> Island -> Game
+    updateIslandInGame (Game xMax yMax islandMap) island = Game xMax yMax newIslands
+      where
+        islandPoint = getIslandPoint island
+        newIslands  = Map.insert islandPoint island islandMap
 
 
 -- Attempt to solve the puzzle
