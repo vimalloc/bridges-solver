@@ -95,6 +95,11 @@ islandsMaxX = maximum . map getX . map getIslandPoint
 islandsMaxY :: [Island] -> Int
 islandsMaxY = maximum . map getY . map getIslandPoint
 
+getIsland :: Point -> Game -> Maybe Island
+getIsland point game = point `Map.lookup` islandMap
+  where
+    islandMap = getIslandPointMap game
+
 traverseBridge :: BridgeDirection -> Point -> Point
 traverseBridge Up' (Point x y)    = (Point x (y-1))
 traverseBridge Down' (Point x y)  = (Point x (y+1))
@@ -119,12 +124,14 @@ getRemoteIsland i direction game = getRemoteIslandLoop startPoint incPoint
         | (getY p > getYMax game) = Nothing
         | (getX p < 0)            = Nothing
         | (getY p < 0)            = Nothing
-        | otherwise               = case possibleIsland of
+        | (isJust maybeBridge)    = Nothing
+        | otherwise               = case maybeIsland of
                                         Just i  -> Just i
                                         Nothing -> getRemoteIslandLoop nextPoint incPoint
       where
-        possibleIsland = p `Map.lookup` (getIslandPointMap game)
-        nextPoint      = incPoint p
+        maybeIsland = p `getIsland` game
+        maybeBridge = bridgeAtPoint p game
+        nextPoint   = incPoint p
 
 getBridgePoints :: Island -> Bridge -> Game -> [Point]
 getBridgePoints island bridge game
@@ -236,8 +243,6 @@ createIslands i = do
             right  = Point (x+1) y
             points = getIslandPointMap game
 
--- TODO account for crossing bridges here?
---
 -- We do some trickery here. Instead of adding the bridge just to this
 -- island, we also add the inverse of this bridge to the remote island.
 -- For example, if we had to islands we wanted to connect with a bridge
@@ -250,7 +255,7 @@ createIslands i = do
 -- expense of a little extra space and a slighly more complicated schema
 addBridge :: Game -> Island -> Bridge -> Game
 addBridge game island bridge = case remoteIsland of
-                                   Nothing -> error "Bridge would not connect to an island"
+                                   Nothing -> error "Bridge does not connect to an island"
                                    Just _  -> newGame
   where
     remoteIsland = getRemoteIsland island (getBridgeDirection bridge) game
