@@ -279,6 +279,48 @@ addBridge game island bridge = case remoteIsland of
         islandPoint = getIslandPoint island
         newIslands  = Map.insert islandPoint island islandMap
 
+-- Solving stragety
+-- * Start at the first island. Need to try each combination of bridges that
+-- * Need to try every possible bridge combinations to fill up the island
+-- * If the island cannot be filled with bridges, recurse backwors, or
+--   in this case return Nothing, as the game cannot be solved
+-- * If the island can be filled with bridges, fill the island then
+--   recurse forward to the next island
+-- * If the return value of this function is Nothing, that means that
+--   every the puzzle cannot be solved, so try to fill the island with a
+--   different configuration of bridges and go forward again
+-- * If no more valid combinations of bridges can be found for this island
+--   return Nothing and let the previous island re-arrange itself.
+-- * If this island can be filled with bridges, and there is no other
+--   islands in the game grid, run a function that checks to make sure
+--   all the bridges are connectied, which should return 'Just game' or
+--   nothing depending on if it is valid. If it is valid, then we just
+--   solved the puzzle. Congrats.
+solve :: Game -> Maybe Game
+solve game = solveLoop game (getFirstIsland game)
+  where
+    solveLoop :: Game -> Island -> Maybe Game
+    solveLoop game island = Just game
+      where
+        nextIsland = getNextIsland game island
+
+
+getFirstIsland :: Game -> Island
+getFirstIsland game = snd . fromJust $ smallestPoint `Map.lookupGE` islandMap
+  where
+    smallestPoint = Point 0 0
+    islandMap     = getIslandPointMap game
+
+
+getNextIsland :: Game -> Island -> Maybe Island
+getNextIsland game island = case maybeIsland of
+                                Just i  -> Just $ snd i
+                                Nothing -> Nothing
+  where
+    currentPoint = getIslandPoint island
+    islandMap    = getIslandPointMap game
+    maybeIsland  = currentPoint `Map.lookupGT` islandMap
+
 
 -- Attempt to solve the puzzle
 --  * Making sure no bridges overlap
