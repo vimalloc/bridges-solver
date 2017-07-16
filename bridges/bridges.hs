@@ -299,3 +299,9 @@ addBridge game island bridge = case remoteIsland of
 -- Finally, build another program on top of this which include the main
 -- function, imports this module, and fetches games from the puzzle bridges
 -- website, and solves them. All the IO stuff happens here
+
+-- Helper function so I can more easily play with createBridges in repl
+fromRight :: Either a b -> b
+fromRight (Right b) = b
+
+testGame = fromRight $ createIslands [(0,0,1), (2,0,1), (4,0,3), (0, 2, 3), (4, 2, 5), (2, 4, 1), (4, 4, 2)]
