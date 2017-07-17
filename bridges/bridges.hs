@@ -253,31 +253,31 @@ createIslands i = do
 -- This allows us to to very quickly calculate how many bridges are in an
 -- island (without having to iterative over all the other islands) at the
 -- expense of a little extra space and a slighly more complicated schema
-addBridge :: Game -> Island -> Bridge -> Game
-addBridge game island bridge = case remoteIsland of
-                                   Nothing -> error "Bridge does not connect to an island"
-                                   Just _  -> newGame
+addBridge :: Game -> Island -> Bridge -> Maybe Game
+addBridge game island1 bridge1 = do
+    island2    <- getRemoteIsland island1 (getBridgeDirection bridge1) game
+    let bridge2 = reverseBridge bridge1
+    newIsland1 <- island1 `addBridgeToIsland` bridge1
+    newIsland2 <- island2 `addBridgeToIsland` bridge2
+    return $ game `updateIslands` [newIsland1, newIsland2]
   where
-    remoteIsland = getRemoteIsland island (getBridgeDirection bridge) game
-    remoteBridge = reverseBridge bridge
-    newIsland    = island `addBridgeToIsland` bridge
-    newRemote    = (fromJust remoteIsland) `addBridgeToIsland` remoteBridge
-    tmpGame      = game `updateIslandInGame` newIsland
-    newGame      = tmpGame `updateIslandInGame` newRemote
-
-    addBridgeToIsland :: Island -> Bridge -> Island
+    addBridgeToIsland :: Island -> Bridge -> Maybe Island
     addBridgeToIsland (Island p v b) bridge
-        | bridgeInIsland = error "Island already has a bridge in this direction"
-        | otherwise      = Island p v newBridges
+        | bridgeInIsland = Nothing
+        | otherwise      = Just (Island p v newBridges)
       where
         bridgeInIsland = bridge `Set.member` b
         newBridges     = bridge `Set.insert` b
 
-    updateIslandInGame :: Game -> Island -> Game
-    updateIslandInGame (Game xMax yMax islandMap) island = Game xMax yMax newIslands
+    updateIslands :: Game -> [Island] -> Game
+    updateIslands game []     = game
+    updateIslands game (x:xs) = updateIslands updatedGame xs
       where
-        islandPoint = getIslandPoint island
-        newIslands  = Map.insert islandPoint island islandMap
+        updatedIsland  = x
+        islandPoint    = getIslandPoint updatedIsland
+        islandMap      = getIslandPointMap game
+        updatedIslands = Map.insert islandPoint updatedIsland islandMap
+        updatedGame    = Game (getXMax game) (getYMax game) updatedIslands
 
 -- Solving stragety
 -- * Start at the first island. Need to try each combination of bridges that
