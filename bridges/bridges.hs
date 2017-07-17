@@ -113,43 +113,43 @@ pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Left'  = x1 < x2 && y1 == y2
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Right' = x1 > x2 && y1 == y2
 
 getRemoteIsland :: Island -> BridgeDirection -> Game -> Maybe Island
-getRemoteIsland i direction game = getRemoteIslandLoop startPoint incPoint
+getRemoteIsland i direction game = getRemoteIslandLoop startPoint
   where
-    incPoint     = traverseBridge direction
-    startPoint   = incPoint $ getIslandPoint i
+    incPoint   = traverseBridge direction
+    startPoint = incPoint $ getIslandPoint i
 
-    getRemoteIslandLoop :: Point -> (Point -> Point) -> Maybe Island
-    getRemoteIslandLoop p incPoint
+    getRemoteIslandLoop :: Point -> Maybe Island
+    getRemoteIslandLoop p
         | (getX p > getXMax game) = Nothing
         | (getY p > getYMax game) = Nothing
         | (getX p < 0)            = Nothing
         | (getY p < 0)            = Nothing
-        | (isJust maybeBridge)    = Nothing
+        | isBridge                = Nothing
         | otherwise               = case maybeIsland of
                                         Just i  -> Just i
-                                        Nothing -> getRemoteIslandLoop nextPoint incPoint
+                                        Nothing -> getRemoteIslandLoop nextPoint
       where
         maybeIsland = p `getIsland` game
-        maybeBridge = bridgeAtPoint p game
+        isBridge    = isJust $ bridgeAtPoint p game
         nextPoint   = incPoint p
 
 getBridgePoints :: Island -> Bridge -> Game -> [Point]
 getBridgePoints island bridge game
     | not bridgeInIsland = error "Bridge not on island"
-    | otherwise          = getBridgePointsLoop startPoint incPoint
+    | otherwise          = getBridgePointsLoop startPoint
   where
     bridgeInIsland = bridge `Set.member` (getIslandBridges island)
     incPoint       = traverseBridge $ getBridgeDirection bridge
     startPoint     = incPoint $ getIslandPoint island
 
-    getBridgePointsLoop :: Point -> (Point -> Point) -> [Point]
-    getBridgePointsLoop p incPoint
+    getBridgePointsLoop :: Point -> [Point]
+    getBridgePointsLoop p
         | (getX p > getXMax game) = error "Bridge does not connecto to an island"
         | (getY p > getYMax game) = error "Bridge does not connecto to an island"
         | (getX p < 0)            = error "Bridge does not connecto to an island"
         | (getY p < 0)            = error "Bridge does not connecto to an island"
         | isIsland                = []
-        | otherwise               = p : getBridgePointsLoop nextP incPoint
+        | otherwise               = p : getBridgePointsLoop nextP
       where
         isIsland = p `Map.member` (getIslandPointMap game)
         nextP = incPoint p
