@@ -313,13 +313,11 @@ getFirstIsland game = snd . fromJust $ smallestPoint `Map.lookupGE` islandMap
 
 
 getNextIsland :: Game -> Island -> Maybe Island
-getNextIsland game island = case maybeIsland of
-                                Just i  -> Just $ snd i
-                                Nothing -> Nothing
-  where
-    currentPoint = getIslandPoint island
-    islandMap    = getIslandPointMap game
-    maybeIsland  = currentPoint `Map.lookupGT` islandMap
+getNextIsland game island = do
+    let islandPoint = getIslandPoint island
+    let islandMap   = getIslandPointMap game
+    nextIsland     <- islandPoint `Map.lookupGT` islandMap
+    return $ snd nextIsland
 
 
 -- Attempt to solve the puzzle
