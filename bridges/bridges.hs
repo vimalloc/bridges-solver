@@ -133,23 +133,6 @@ getRemoteIsland i direction game = getRemoteIslandLoop startPoint
         isBridge    = isJust $ bridgeAtPoint p game
         nextPoint   = incPoint p
 
-getRemoteIsland2 :: Island -> BridgeDirection -> Game -> Maybe Island
-getRemoteIsland2 island dir game = do
-    let islandMap    = getIslandPointMap game
-    let incPoint     = traverseBridge dir
-    let startPoint   = incPoint $ getIslandPoint island
-    let bridgePoints = takeWhile (not . endPoint) $ iterate incPoint startPoint
-    islandPoint     <- find (`Map.member` islandMap) bridgePoints
-    return $ islandMap Map.! islandPoint
-  where
-    xMax = getXMax game
-    yMax = getYMax game
-
-    endPoint :: Point -> Bool
-    endPoint (Point x y) = (x > xMax) || (y > yMax) || (x < 0) || (y < 0) || (isBridge)
-      where
-        isBridge = isJust $ bridgeAtPoint (Point x y) game
-
 getBridgePoints :: Island -> Bridge -> Game -> [Point]
 getBridgePoints island bridge game
     | not bridgeInIsland = error "Bridge not on island"
