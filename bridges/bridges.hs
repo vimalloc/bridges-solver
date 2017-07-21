@@ -190,19 +190,10 @@ pprint game = pprintLoop 0 0 game
         c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
 
 createIslands :: [(Int, Int, Int)] -> Either String Game
-createIslands i = createIslandsGo i >>= createGame
+createIslands i = traverse createIsland i >>= createGame
   where
-    -- TODO can I use some sort of map here
-    createIslandsGo :: [(Int, Int, Int)] -> Either String [Island]
-    createIslandsGo []     = Right []
-    createIslandsGo (x:xs) = liftA2 (:) (createIsland x) (createIslandsGo xs)
-
     createIsland :: (Int, Int, Int) -> Either String Island
-    createIsland (x,y,v) = (island x y) <$> intToIslandValue v
-
-    -- Can I get rid of this as a named method?
-    island :: Int -> Int -> IslandValue -> Island
-    island x y value = Island (Point x y) value Set.empty
+    createIsland (x,y,v) = (\v -> Island (Point x y) v Set.empty) <$> intToIslandValue v
 
     createGame :: [Island] -> Either String Game
     createGame islands
