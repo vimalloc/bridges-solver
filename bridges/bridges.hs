@@ -54,6 +54,17 @@ data Game = Game
 instance Ord Bridge where
     (Bridge d1 _) `compare` (Bridge d2 _) = d1 `compare` d2
 
+intToIslandValue :: Int -> Either String IslandValue
+intToIslandValue 1 = Right One
+intToIslandValue 2 = Right Two
+intToIslandValue 3 = Right Three
+intToIslandValue 4 = Right Four
+intToIslandValue 5 = Right Five
+intToIslandValue 6 = Right Six
+intToIslandValue 7 = Right Seven
+intToIslandValue 8 = Right Eight
+intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
+
 islandToChar :: Island -> Char
 islandToChar (Island _ One _)   = '1'
 islandToChar (Island _ Two _)   = '2'
@@ -82,12 +93,6 @@ reverseBridge (Bridge Right' val) = Bridge Left' val
 
 getIslands :: Game -> [Island]
 getIslands game = Map.elems $ getIslandPointMap game
-
-getIslandX :: Island -> Int
-getIslandX = getX . getIslandPoint
-
-getIslandY :: Island -> Int
-getIslandY = getY . getIslandPoint
 
 islandsMaxX :: [Island] -> Int
 islandsMaxX = maximum . map getX . map getIslandPoint
@@ -185,63 +190,48 @@ pprint game = pprintLoop 0 0 game
         c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
 
 createIslands :: [(Int, Int, Int)] -> Either String Game
-createIslands i = do
-    islands <- createIslandsGo i  -- Can I make this a map instead?
-    let xMax = islandsMaxX islands
-    let yMax = islandsMaxY islands
-    let iMap = Map.fromList $ [(getIslandPoint i, i) | i <- islands]
-    let game = Game xMax yMax iMap
-    when (hasDuplicateIslands game islands) $ Left "Multiple islands exist at the same point"
-    when (hasNoSpaceForBridges game) $ Left "Two islands are directly next to each other"
-    return game
+createIslands i = createIslandsGo i >>= createGame
   where
+    -- TODO can I use some sort of map here
     createIslandsGo :: [(Int, Int, Int)] -> Either String [Island]
     createIslandsGo []     = Right []
-    createIslandsGo (x:xs) = do
-        island     <- createIsland x
-        nextIsland <- createIslandsGo xs
-        return $ island : nextIsland
+    createIslandsGo (x:xs) = liftA2 (:) (createIsland x) (createIslandsGo xs)
 
     createIsland :: (Int, Int, Int) -> Either String Island
-    createIsland (x,y,v) = do
-        value <- intToIslandValue v
-        return $ Island (Point x y) value Set.empty
+    createIsland (x,y,v) = (island x y) <$> intToIslandValue v
 
-    intToIslandValue :: Int -> Either String IslandValue
-    intToIslandValue 1 = Right One
-    intToIslandValue 2 = Right Two
-    intToIslandValue 3 = Right Three
-    intToIslandValue 4 = Right Four
-    intToIslandValue 5 = Right Five
-    intToIslandValue 6 = Right Six
-    intToIslandValue 7 = Right Seven
-    intToIslandValue 8 = Right Eight
-    intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
+    -- Can I get rid of this as a named method?
+    island :: Int -> Int -> IslandValue -> Island
+    island x y value = Island (Point x y) value Set.empty
 
-    hasDuplicateIslands :: Game -> [Island] -> Bool
-    hasDuplicateIslands game islands = listSize /= setSize
+    createGame :: [Island] -> Either String Game
+    createGame islands
+        | hasDuplicateIslands islands game  = Left "Multiple islands exist at the same point"
+        | hasNoSpaceForBridges islands game = Left "Two islands exists without room for a bridge between them"
+        | otherwise                         = Right game
+      where
+        iMap = Map.fromList $ [(getIslandPoint i, i) | i <- islands]
+        game = Game (islandsMaxX islands) (islandsMaxY islands) iMap
+
+    hasDuplicateIslands :: [Island] -> Game -> Bool
+    hasDuplicateIslands islands game = listSize /= setSize
       where
         listSize = length islands
         setSize  = Map.size $ getIslandPointMap game
 
-    hasNoSpaceForBridges :: Game -> Bool
-    hasNoSpaceForBridges game = any hasNoSpaceForBridge $ getIslands game
+    hasNoSpaceForBridges :: [Island] -> Game -> Bool
+    hasNoSpaceForBridges islands game = any (hasNoSpaceForBridge) islands
       where
         hasNoSpaceForBridge :: Island -> Bool
-        hasNoSpaceForBridge island
-            | up `Map.member`    points = True
-            | down `Map.member`  points = True
-            | left `Map.member`  points = True
-            | right `Map.member` points = True
-            | otherwise                 = False
+        hasNoSpaceForBridge (Island (Point x y) _ _)
+            | (Point x (y-1)) `Map.member` points = True
+            | (Point x (y+1)) `Map.member` points = True
+            | (Point (x-1) y) `Map.member` points = True
+            | (Point (x+1) y) `Map.member` points = True
+            | otherwise                           = False
           where
-            x      = getX . getIslandPoint $ island
-            y      = getY . getIslandPoint $ island
-            up     = Point x (y-1)
-            down   = Point x (y+1)
-            left   = Point (x-1) y
-            right  = Point (x+1) y
             points = getIslandPointMap game
+
 
 -- We do some trickery here. Instead of adding the bridge just to this
 -- island, we also add the inverse of this bridge to the remote island.
@@ -313,11 +303,10 @@ getFirstIsland game = snd . fromJust $ smallestPoint `Map.lookupGE` islandMap
 
 
 getNextIsland :: Game -> Island -> Maybe Island
-getNextIsland game island = do
-    let islandPoint = getIslandPoint island
-    let islandMap   = getIslandPointMap game
-    nextIsland     <- islandPoint `Map.lookupGT` islandMap
-    return $ snd nextIsland
+getNextIsland game island = snd <$> islandPoint `Map.lookupGT` islandMap
+  where
+    islandPoint = getIslandPoint island
+    islandMap   = getIslandPointMap game
 
 
 -- Attempt to solve the puzzle
