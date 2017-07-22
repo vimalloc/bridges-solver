@@ -85,12 +85,21 @@ islandValueToInt Seven = 7
 islandValueToInt Eight = 8
 
 
+bridgeToInt :: Bridge -> Int
+bridgeToInt (Bridge _ Single) = 1
+bridgeToInt (Bridge _ Double) = 2
+
+
 islandValueInt :: Island -> Int
 islandValueInt = islandValueToInt . getIslandValue
 
 
 numBridges :: Island -> Int
-numBridges = Set.size . getIslandBridges
+numBridges i = Set.foldr (+) 0 $ Set.map (bridgeToInt) (getIslandBridges i)
+
+
+islandOverFilled :: Island -> Bool
+islandOverFilled island = numBridges island > islandValueInt island
 
 
 islandToChar :: Island -> Char
@@ -288,8 +297,11 @@ addBridge game island bridge = updateIslands game <$> newIsland1 <*> newIsland2
 
     addBridgeToIsland :: Bridge -> Island -> Maybe Island
     addBridgeToIsland bridge (Island p v b)
-        | bridge `Set.member` b = Nothing
-        | otherwise             = Just (Island p v (bridge `Set.insert` b))
+        | bridge `Set.member` b      = Nothing
+        | islandOverFilled newIsland = Nothing
+        | otherwise                  = Just newIsland
+      where
+        newIsland = Island p v (bridge `Set.insert` b)
 
     updateIslands :: Game -> Island -> Island -> Game
     updateIslands game i1 i2 = updateIsland i2 $ updateIsland i1 game
@@ -340,8 +352,6 @@ getNextIsland game island = snd <$> islandPoint `Map.lookupGT` islandMap
     islandMap   = getIslandPointMap game
 
 
--- TODO addBridge should return Nothing if either given island or remote island
---      has too many bridges (remove that filter from here)
 -- TODO can I make this better with list monads? Looks like bine for list is
 --      basically concat map which I'm already doing, so probably
 -- TODO Better way to come up with all bridge combinations
@@ -364,12 +374,8 @@ fillBridges i g
                 addBridge g i (Bridge Left' Double),
                 addBridge g i (Bridge Right' Single),
                 addBridge g i (Bridge Right' Double)]
-    perms = filter (islandOverFilled islandP) $ map (fromJust) $ filter (isJust) allPerms
+    perms = map (fromJust) $ filter (isJust) allPerms
 
-    islandOverFilled :: Point -> Game -> Bool
-    islandOverFilled islandPoint game = numBridges island  <= islandValueInt island
-      where
-        island = fromJust $ getIsland islandPoint game
 
 -- Attempt to solve the puzzle
 --  * Making sure no bridges overlap
