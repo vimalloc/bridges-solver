@@ -13,13 +13,16 @@ data BridgeDirection = Up'
                      | Left'
                      | Right' deriving (Eq, Show, Ord)
 
+
 data BridgeValue = Single
                  | Double deriving (Eq, Show, Ord)
+
 
 data Bridge = Bridge
     { getBridgeDirection :: !BridgeDirection
     , getBridgeValue     :: !BridgeValue
     } deriving (Eq, Show)
+
 
 data IslandValue = One
                  | Two
@@ -30,10 +33,12 @@ data IslandValue = One
                  | Seven
                  | Eight deriving (Eq, Show, Ord)
 
+
 data Point = Point
     { getX :: !Int
     , getY :: !Int
     } deriving (Eq, Show, Ord)
+
 
 data Island = Island
     { getIslandPoint   :: !Point
@@ -41,11 +46,13 @@ data Island = Island
     , getIslandBridges :: !(Set.Set Bridge)
     } deriving (Eq, Show, Ord)
 
+
 data Game = Game
     { getXMax    :: !Int
     , getYMax    :: !Int
     , getIslandPointMap :: !(Map.Map Point Island)
     } deriving (Eq, Show)
+
 
 -- Define our own ordering test here. We are using a set of bridges for the
 -- island, and we don't care if the bridge is a single or double there, only
@@ -53,6 +60,7 @@ data Game = Game
 -- have duplicate bridges on an island without any addition checks on our part
 instance Ord Bridge where
     (Bridge d1 _) `compare` (Bridge d2 _) = d1 `compare` d2
+
 
 intToIslandValue :: Int -> Either String IslandValue
 intToIslandValue 1 = Right One
@@ -65,6 +73,26 @@ intToIslandValue 7 = Right Seven
 intToIslandValue 8 = Right Eight
 intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
 
+
+islandValueToInt :: IslandValue -> Int
+islandValueToInt One   = 1
+islandValueToInt Two   = 2
+islandValueToInt Three = 3
+islandValueToInt Four  = 4
+islandValueToInt Five  = 5
+islandValueToInt Six   = 6
+islandValueToInt Seven = 7
+islandValueToInt Eight = 8
+
+
+islandValueInt :: Island -> Int
+islandValueInt = islandValueToInt . getIslandValue
+
+
+numBridges :: Island -> Int
+numBridges = Set.size . getIslandBridges
+
+
 islandToChar :: Island -> Char
 islandToChar (Island _ One _)   = '1'
 islandToChar (Island _ Two _)   = '2'
@@ -74,6 +102,7 @@ islandToChar (Island _ Five _)  = '5'
 islandToChar (Island _ Six _)   = '6'
 islandToChar (Island _ Seven _) = '7'
 islandToChar (Island _ Eight _) = '8'
+
 
 bridgeToChar :: Bridge -> Char
 bridgeToChar (Bridge Up' Single)    = '|'
@@ -85,25 +114,29 @@ bridgeToChar (Bridge Right' Single) = '―'
 bridgeToChar (Bridge Left' Double)  = '═'
 bridgeToChar (Bridge Right' Double) = '═'
 
+
 reverseBridge :: Bridge -> Bridge
 reverseBridge (Bridge Up' val)    = Bridge Down' val
 reverseBridge (Bridge Down' val)  = Bridge Up' val
 reverseBridge (Bridge Left' val)  = Bridge Right' val
 reverseBridge (Bridge Right' val) = Bridge Left' val
 
+
 getIslands :: Game -> [Island]
 getIslands game = Map.elems $ getIslandPointMap game
+
 
 islandsMaxX :: [Island] -> Int
 islandsMaxX = maximum . map getX . map getIslandPoint
 
+
 islandsMaxY :: [Island] -> Int
 islandsMaxY = maximum . map getY . map getIslandPoint
 
+
 getIsland :: Point -> Game -> Maybe Island
-getIsland point game = point `Map.lookup` islandMap
-  where
-    islandMap = getIslandPointMap game
+getIsland point game = point `Map.lookup` (getIslandPointMap game)
+
 
 traverseBridge :: BridgeDirection -> Point -> Point
 traverseBridge Up' (Point x y)    = (Point x (y-1))
@@ -111,11 +144,13 @@ traverseBridge Down' (Point x y)  = (Point x (y+1))
 traverseBridge Left' (Point x y)  = (Point (x-1) y)
 traverseBridge Right' (Point x y) = (Point (x+1) y)
 
+
 pointCouldBeOnBridge :: Point -> Point -> BridgeDirection -> Bool
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Up'    = x1 == x2 && y1 < y2
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Down'  = x1 == x2 && y1 > y2
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Left'  = x1 < x2 && y1 == y2
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Right' = x1 > x2 && y1 == y2
+
 
 getRemoteIsland :: Island -> BridgeDirection -> Game -> Maybe Island
 getRemoteIsland i direction game = getRemoteIslandLoop startPoint
@@ -138,6 +173,7 @@ getRemoteIsland i direction game = getRemoteIslandLoop startPoint
         isBridge    = isJust $ bridgeAtPoint p game
         nextPoint   = incPoint p
 
+
 getBridgePoints :: Island -> Bridge -> Game -> [Point]
 getBridgePoints island bridge game
     | not bridgeInIsland = error "Bridge not on island"
@@ -159,9 +195,16 @@ getBridgePoints island bridge game
         isIsland = p `Map.member` (getIslandPointMap game)
         nextP = incPoint p
 
+
 islandAtPoint :: Point -> Game -> Maybe Island
 islandAtPoint point game = point `Map.lookup` (getIslandPointMap game)
 
+
+-- TODO think i can do better here. I don't need to check for the actual points,
+--      I just need to filter out so only the bridges on the same horizontal or
+--      vertical line are left in a list, then select the one that is closes to
+--      the point. Think that should be significatnly faster as im no longer
+--      iterating bridges, but just doing math on points (and filter is o(n))
 bridgeAtPoint :: Point -> Game -> Maybe Bridge
 bridgeAtPoint point game = asum . map getBridgeAtPointFromIsland $ getIslands game
   where
@@ -176,6 +219,7 @@ bridgeAtPoint point game = asum . map getBridgeAtPointFromIsland $ getIslands ga
         couldBeOnBridge = pointCouldBeOnBridge point islandPoint direction
         bridgePoints    = getBridgePoints island bridge game
 
+
 pprint :: Game -> String
 pprint game = pprintLoop 0 0 game
   where
@@ -188,6 +232,7 @@ pprint game = pprintLoop 0 0 game
         i = islandAtPoint (Point x y) game
         b = bridgeAtPoint (Point x y) game
         c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
+
 
 createIslands :: [(Int, Int, Int)] -> Either String Game
 createIslands i = traverse createIsland i >>= createGame
@@ -295,6 +340,37 @@ getNextIsland game island = snd <$> islandPoint `Map.lookupGT` islandMap
     islandMap   = getIslandPointMap game
 
 
+-- TODO addBridge should return Nothing if either given island or remote island
+--      has too many bridges (remove that filter from here)
+-- TODO can I make this better with list monads? Looks like bine for list is
+--      basically concat map which I'm already doing, so probably
+-- TODO Better way to come up with all bridge combinations
+-- TODO final step, filter out only islands that are fully filled
+-- TODO is it possible that the same combination of bridges could be generated
+--      multiple time. Yes, yes it is. We should remove those duplicates so we
+--      don't waste cpu time running calculations we have already done (could
+--      we just use a set instead of a list for this or something? Or memoization?)
+fillBridges :: Island -> Game -> [Game]
+fillBridges i g
+    | null perms = [g]
+    | otherwise  = (g : perms) ++ concat (map (fillBridges i) perms)
+  where
+    islandP  = getIslandPoint i
+    allPerms = [addBridge g i (Bridge Up' Single),
+                addBridge g i (Bridge Up' Double),
+                addBridge g i (Bridge Down' Single),
+                addBridge g i (Bridge Down' Double),
+                addBridge g i (Bridge Left' Single),
+                addBridge g i (Bridge Left' Double),
+                addBridge g i (Bridge Right' Single),
+                addBridge g i (Bridge Right' Double)]
+    perms = filter (islandOverFilled islandP) $ map (fromJust) $ filter (isJust) allPerms
+
+    islandOverFilled :: Point -> Game -> Bool
+    islandOverFilled islandPoint game = numBridges island  <= islandValueInt island
+      where
+        island = fromJust $ getIsland islandPoint game
+
 -- Attempt to solve the puzzle
 --  * Making sure no bridges overlap
 --  * Making sure all islands have the correct number of bridges coming from them
@@ -320,3 +396,4 @@ fromRight :: Either a b -> b
 fromRight (Right b) = b
 
 testGame = fromRight $ createIslands [(0,0,1), (2,0,1), (4,0,3), (0, 2, 3), (4, 2, 5), (2, 4, 1), (4, 4, 2)]
+
