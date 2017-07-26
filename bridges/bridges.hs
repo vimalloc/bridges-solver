@@ -337,13 +337,9 @@ solve game = solveLoop1 (getFirstIsland game) game
     -}
 
     solveLoop1 :: Point -> Game -> Maybe Game
-    solveLoop1 p g
-        | isGameSolved g       = Just g   -- TODO move this to case of nextIsland, don't check unnecessarily
-        | isNothing nextIsland = Nothing
-        | otherwise            = solveLoop2 filledIslands (fromJust nextIsland)
-      where
-        nextIsland    = getNextIsland g p
-        filledIslands = getPossibleBridges p g
+    solveLoop1 p g = case (getNextIsland g p) of
+                         Nothing -> fromBool (isGameSolved g) g
+                         Just i  -> solveLoop2 (getPossibleBridges p g) i
 
     solveLoop2 :: [Game] -> Point -> Maybe Game
     solveLoop2 gs p = fromJust <$> (find (isJust) . map (solveLoop1 p) $ gs)
@@ -364,19 +360,24 @@ getPossibleBridges p g = filter (islandFilled . fromJust . getIsland p) $ fillBr
     fillBridges p g = nub $ g : (perms >>= fillBridges p)
       where
         island = fromJust $ getIsland p g
-        perms = catMaybes . map (addBridge g island) $ [(Bridge Up' Single),
-                                                        (Bridge Up' Double),
-                                                        (Bridge Down' Single),
-                                                        (Bridge Down' Double),
-                                                        (Bridge Left' Single),
-                                                        (Bridge Left' Double),
-                                                        (Bridge Right' Single),
-                                                        (Bridge Right' Double)]
+        perms = catMaybes . map (addBridge g island) $ [Bridge Up' Single,
+                                                        Bridge Up' Double,
+                                                        Bridge Down' Single,
+                                                        Bridge Down' Double,
+                                                        Bridge Left' Single,
+                                                        Bridge Left' Double,
+                                                        Bridge Right' Single,
+                                                        Bridge Right' Double]
 
 
 -- TODO account for loops in the game
 isGameSolved :: Game -> Bool
 isGameSolved g = all (islandFilled) $ getIslands g
+
+
+fromBool :: Bool -> a -> Maybe a
+fromBool False _ = Nothing
+fromBool True a  = Just a
 
 
 -- Have this module only expor
