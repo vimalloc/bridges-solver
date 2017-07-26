@@ -318,35 +318,19 @@ addBridge game island bridge = updateIslands game <$> newIsland1 <*> newIsland2
         updatedIslands = Map.insert (getIslandPoint island) island islandMap
 
 
--- TODO move this into single recursive loop (was just easier to reason about
---      this way when developint it)
 solve :: Game -> Maybe Game
-solve game = solveLoop1 (getFirstIsland game) game
+solve game = solveLoop (getFirstIsland game) game
   where
-    {-
-    solveLoop :: [Game] -> Point -> Maybe Game
-    solveLoop [] _   = Nothing
-    solveLoop (g:gs) p
-        | isGameSolved g       = Just g
-        | isNothing nextIsland = Nothing
-        | otherwise            = case (getPossibleBridges p g) of
-                                   []  -> solveLoop gs p
-                                   gs' -> solveLoop gs' $ fromJust nextIsland
+    solveLoop :: Point -> Game -> Maybe Game
+    solveLoop p g = case (getNextPoint g p) of
+                        Nothing -> fromBool (isGameSolved g) g
+                        Just p  -> fromJust <$> (find isJust . map (solveLoop p) $ gs)
       where
-        nextIsland = getNextIsland g p
-    -}
-
-    solveLoop1 :: Point -> Game -> Maybe Game
-    solveLoop1 p g = case (getNextIsland g p) of
-                         Nothing -> fromBool (isGameSolved g) g
-                         Just i  -> solveLoop2 (getPossibleBridges p g) i
-
-    solveLoop2 :: [Game] -> Point -> Maybe Game
-    solveLoop2 gs p = fromJust <$> (find (isJust) . map (solveLoop1 p) $ gs)
+        gs = getPossibleBridges p g
 
 
-getNextIsland :: Game -> Point -> Maybe Point
-getNextIsland g p = fst <$> p `Map.lookupGT` (getIslandPointMap g)
+getNextPoint :: Game -> Point -> Maybe Point
+getNextPoint g p = fst <$> p `Map.lookupGT` (getIslandPointMap g)
 
 
 getFirstIsland :: Game -> Point
@@ -415,3 +399,6 @@ testGame2 = fromRight $ createIslands [(1, 0, 2),
                                        (3, 9, 2),
                                        (7, 9, 4),
                                        (9, 9, 4)]
+
+main :: IO ()
+main = putStrLn . pprint . fromJust . solve $ testGame2
