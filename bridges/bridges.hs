@@ -106,26 +106,27 @@ islandFilled :: Island -> Bool
 islandFilled island = numBridges island == islandValueInt island
 
 
-islandToChar :: Island -> Char
-islandToChar (Island _ One _)   = '1'
-islandToChar (Island _ Two _)   = '2'
-islandToChar (Island _ Three _) = '3'
-islandToChar (Island _ Four _)  = '4'
-islandToChar (Island _ Five _)  = '5'
-islandToChar (Island _ Six _)   = '6'
-islandToChar (Island _ Seven _) = '7'
-islandToChar (Island _ Eight _) = '8'
+-- Terminal codes to make result blue and bold
+islandToString :: Island -> String
+islandToString (Island _ One _)   = "\ESC[94m\ESC[1m1\ESC[0m"
+islandToString (Island _ Two _)   = "\ESC[94m\ESC[1m2\ESC[0m"
+islandToString (Island _ Three _) = "\ESC[94m\ESC[1m3\ESC[0m"
+islandToString (Island _ Four _)  = "\ESC[94m\ESC[1m4\ESC[0m"
+islandToString (Island _ Five _)  = "\ESC[94m\ESC[1m5\ESC[0m"
+islandToString (Island _ Six _)   = "\ESC[94m\ESC[1m6\ESC[0m"
+islandToString (Island _ Seven _) = "\ESC[94m\ESC[1m7\ESC[0m"
+islandToString (Island _ Eight _) = "\ESC[94m\ESC[1m8\ESC[0m"
 
 
-bridgeToChar :: Bridge -> Char
-bridgeToChar (Bridge Up' Single)    = '|'
-bridgeToChar (Bridge Down' Single)  = '|'
-bridgeToChar (Bridge Up' Double)    = '‖'
-bridgeToChar (Bridge Down' Double)  = '‖'
-bridgeToChar (Bridge Left' Single)  = '―'
-bridgeToChar (Bridge Right' Single) = '―'
-bridgeToChar (Bridge Left' Double)  = '═'
-bridgeToChar (Bridge Right' Double) = '═'
+bridgeToString :: Bridge -> String
+bridgeToString (Bridge Up' Single)    = "|"
+bridgeToString (Bridge Down' Single)  = "|"
+bridgeToString (Bridge Up' Double)    = "‖"
+bridgeToString (Bridge Down' Double)  = "‖"
+bridgeToString (Bridge Left' Single)  = "―"
+bridgeToString (Bridge Right' Single) = "―"
+bridgeToString (Bridge Left' Double)  = "═"
+bridgeToString (Bridge Right' Double) = "═"
 
 
 reverseBridge :: Bridge -> Bridge
@@ -240,11 +241,11 @@ pprint game = pprintLoop 0 0 game
     pprintLoop x y game
         | y > (getYMax game)  = ""
         | x > (getXMax game)  = "\n" ++ pprintLoop 0 (y+1) game
-        | otherwise           = c : " " ++ pprintLoop (x+1) y game
+        | otherwise           = c ++ " " ++ pprintLoop (x+1) y game
       where
         i = islandAtPoint (Point x y) game
         b = bridgeAtPoint (Point x y) game
-        c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
+        c = fromMaybe " " $ (islandToString <$> i) <|> (bridgeToString <$> b)
 
 
 -- TODO don't allow islands at negative points
@@ -309,7 +310,7 @@ addBridge game island bridge = updateIslands game <$> newIsland1 <*> newIsland2
         newIsland = Island p v (bridge `Set.insert` b)
 
     updateIslands :: Game -> Island -> Island -> Game
-    updateIslands game i1 i2 = updateIsland i2 $ updateIsland i1 game
+    updateIslands game i1 i2 = updateIsland i2 . updateIsland i1 $ game
 
     updateIsland :: Island -> Game -> Game
     updateIsland island (Game xMax yMax islandMap) = Game xMax yMax updatedIslands
@@ -345,7 +346,7 @@ solve game = solveLoop1 (getFirstIsland game) game
         filledIslands = getPossibleBridges p g
 
     solveLoop2 :: [Game] -> Point -> Maybe Game
-    solveLoop2 gs p = fromJust <$> (find (isJust) $ map (solveLoop1 p) gs)
+    solveLoop2 gs p = fromJust <$> (find (isJust) . map (solveLoop1 p) $ gs)
 
 
 getNextIsland :: Game -> Point -> Maybe Point
@@ -353,14 +354,14 @@ getNextIsland g p = fst <$> p `Map.lookupGT` (getIslandPointMap g)
 
 
 getFirstIsland :: Game -> Point
-getFirstIsland g = fst . fromJust $ (Point 0 0) `Map.lookupGE` (getIslandPointMap g)
+getFirstIsland g = fst . fromJust . Map.lookupGE (Point 0 0) $ getIslandPointMap g
 
 
 -- TODO can I make this better with list monads? Looks like bine for list is
 --      basically concat map which I'm already doing, so probably
 -- TODO Better way to come up with all bridge combinations
 getPossibleBridges :: Point -> Game -> [Game]
-getPossibleBridges p g = filter (\g' -> islandFilled $ fromJust (getIsland p g')) $ fillBridges p g
+getPossibleBridges p g = filter (islandFilled . fromJust . getIsland p) $ fillBridges p g
   where
     fillBridges :: Point -> Game -> [Game]
     fillBridges p g = nub $ (g : perms) ++ concat (map (fillBridges p) perms)
