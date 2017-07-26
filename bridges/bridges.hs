@@ -334,36 +334,45 @@ addBridge game island bridge = updateIslands game <$> newIsland1 <*> newIsland2
 --   nothing depending on if it is valid. If it is valid, then we just
 --   solved the puzzle. Congrats.
 solve :: Game -> Maybe Game
-solve game = solveLoop game (getFirstIsland game)
+solve game = solveLoop [game] (getIslandPoint $ getFirstIsland game)
   where
-    solveLoop :: Game -> Island -> Maybe Game
-    solveLoop game island = Just game
+    solveLoop :: [Game] -> Point -> Maybe Game
+    solveLoop [] _   = Nothing
+    solveLoop (g:gs) p
+        | isGameSolved g       = Just g
+        | isNothing nextIsland = Nothing
+        | otherwise            = case (getPossibleBridges p g) of
+                                   []  -> solveLoop gs p
+                                   gs' -> solveLoop gs' $ fromJust nextIsland
       where
-        nextIsland = getNextIsland game island
+        nextIsland = getNextIsland g p
+
+
+
+
+-- Cases
+--   * Game is solved, we are done
+--   * This island has been filled, run recursion against next loop
+--   * The current gaem we are looking at cannot progress any more, return Nothing
+--   * Nothing was just returned, try the next game in the list
 
 
 getFirstIsland :: Game -> Island
-getFirstIsland game = snd . fromJust $ smallestPoint `Map.lookupGE` islandMap
+getFirstIsland g = snd . fromJust $ smallestPoint `Map.lookupGE` (getIslandPointMap g)
   where
     smallestPoint = Point 0 0
-    islandMap     = getIslandPointMap game
 
 
-getNextIsland :: Game -> Island -> Maybe Island
-getNextIsland game island = snd <$> islandPoint `Map.lookupGT` islandMap
-  where
-    islandPoint = getIslandPoint island
-    islandMap   = getIslandPointMap game
+getNextIsland :: Game -> Point -> Maybe Point
+getNextIsland g p = fst <$> p `Map.lookupGT` (getIslandPointMap g)
 
 
 -- TODO can I make this better with list monads? Looks like bine for list is
 --      basically concat map which I'm already doing, so probably
 -- TODO Better way to come up with all bridge combinations
-getPossibleBridges :: Island -> Game -> [Game]
-getPossibleBridges i g = filter (\g' -> islandFilled $ fromJust (getIsland p g')) $ fillBridges p g
+getPossibleBridges :: Point -> Game -> [Game]
+getPossibleBridges p g = filter (\g' -> islandFilled $ fromJust (getIsland p g')) $ fillBridges p g
   where
-    p = getIslandPoint i
-
     fillBridges :: Point -> Game -> [Game]
     fillBridges p g = nub $ (g : perms) ++ concat (map (fillBridges p) perms)
       where
@@ -377,6 +386,12 @@ getPossibleBridges i g = filter (\g' -> islandFilled $ fromJust (getIsland p g')
                     addBridge g island (Bridge Right' Single),
                     addBridge g island (Bridge Right' Double)]
         perms = map (fromJust) $ filter (isJust) allPerms
+
+
+
+-- TODO account for loops in the game
+isGameSolved :: Game -> Bool
+isGameSolved g = all (islandFilled) $ getIslands g
 
 
 -- Attempt to solve the puzzle
@@ -404,5 +419,5 @@ fromRight :: Either a b -> b
 fromRight (Right b) = b
 
 testGame = fromRight $ createIslands [(0,0,1), (2,0,1), (4,0,3), (0, 2, 3), (4, 2, 5), (2, 4, 1), (4, 4, 2)]
-i0 = getFirstIsland testGame               -- Island at 0,0
-i1 = fromJust $ getNextIsland testGame i0  -- Island at 0,2
+--i0 = getFirstIsland testGame               -- Island at 0,0
+--i1 = fromJust $ getNextIsland testGame i0  -- Island at 0,2
