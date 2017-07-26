@@ -95,15 +95,15 @@ islandValueInt = islandValueToInt . getIslandValue
 
 
 numBridges :: Island -> Int
-numBridges i = foldr (+) 0 $ map (bridgeToInt) (Set.toList $ getIslandBridges i)
+numBridges = foldr (+) 0 . map (bridgeToInt) . Set.toList . getIslandBridges
 
 
 islandOverFilled :: Island -> Bool
-islandOverFilled island = numBridges island > islandValueInt island
+islandOverFilled i = numBridges i > islandValueInt i
 
 
 islandFilled :: Island -> Bool
-islandFilled island = numBridges island == islandValueInt island
+islandFilled i = numBridges i == islandValueInt i
 
 
 -- Terminal codes to make result blue and bold
@@ -130,14 +130,14 @@ bridgeToString (Bridge Right' Double) = "═"
 
 
 reverseBridge :: Bridge -> Bridge
-reverseBridge (Bridge Up' val)    = Bridge Down' val
-reverseBridge (Bridge Down' val)  = Bridge Up' val
-reverseBridge (Bridge Left' val)  = Bridge Right' val
-reverseBridge (Bridge Right' val) = Bridge Left' val
+reverseBridge (Bridge Up' v)    = Bridge Down' v
+reverseBridge (Bridge Down' v)  = Bridge Up' v
+reverseBridge (Bridge Left' v)  = Bridge Right' v
+reverseBridge (Bridge Right' v) = Bridge Left' v
 
 
 getIslands :: Game -> [Island]
-getIslands game = Map.elems $ getIslandPointMap game
+getIslands = Map.elems . getIslandPointMap
 
 
 islandsMaxX :: [Island] -> Int
@@ -324,7 +324,7 @@ solve game = solveLoop (getFirstIsland game) game
     solveLoop :: Point -> Game -> Maybe Game
     solveLoop p g = case (getNextPoint g p) of
                         Nothing -> fromBool (isGameSolved g) g
-                        Just p  -> fromJust <$> (find isJust . map (solveLoop p) $ gs)
+                        Just p  -> asum . map (solveLoop p) $ gs
       where
         gs = getPossibleBridges p g
 
@@ -356,7 +356,7 @@ getPossibleBridges p g = filter (islandFilled . fromJust . getIsland p) $ fillBr
 
 -- TODO account for loops in the game
 isGameSolved :: Game -> Bool
-isGameSolved g = all (islandFilled) $ getIslands g
+isGameSolved = all (islandFilled) . getIslands
 
 
 fromBool :: Bool -> a -> Maybe a
@@ -378,27 +378,13 @@ fromBool True a  = Just a
 fromRight :: Either a b -> b
 fromRight (Right b) = b
 
-testGame = fromRight $ createIslands [(0,0,1), (2,0,1), (4,0,3), (0, 2, 3), (4, 2, 5), (2, 4, 1), (4, 4, 2)]
-testGame2 = fromRight $ createIslands [(1, 0, 2),
-                                       (5, 0, 4),
-                                       (9, 0, 4),
-                                       (0, 1, 1),
-                                       (1, 2, 4),
-                                       (4, 2, 3),
-                                       (7, 2, 4),
-                                       (9, 2, 5),
-                                       (7, 4, 2),
-                                       (5, 5, 4),
-                                       (9, 5, 4),
-                                       (1, 7, 1),
-                                       (4, 7, 1),
-                                       (7, 7, 1),
-                                       (0, 8, 3),
-                                       (5, 8, 4),
-                                       (1, 9, 1),
-                                       (3, 9, 2),
-                                       (7, 9, 4),
-                                       (9, 9, 4)]
+testGame2 = fromRight $ createIslands [(1, 0, 2), (5, 0, 4), (9, 0, 4),
+                                       (0, 1, 1), (1, 2, 4), (4, 2, 3),
+                                       (7, 2, 4), (9, 2, 5), (7, 4, 2),
+                                       (5, 5, 4), (9, 5, 4), (1, 7, 1),
+                                       (4, 7, 1), (7, 7, 1), (0, 8, 3),
+                                       (5, 8, 4), (1, 9, 1), (3, 9, 2),
+                                       (7, 9, 4), (9, 9, 4)]
 
 main :: IO ()
 main = putStrLn . pprint . fromJust . solve $ testGame2
