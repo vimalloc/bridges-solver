@@ -95,7 +95,7 @@ islandValueInt = islandValueToInt . getIslandValue
 
 
 numBridges :: Island -> Int
-numBridges i = Set.foldr (+) 0 $ Set.map (bridgeToInt) (getIslandBridges i)
+numBridges i = foldr (+) 0 $ map (bridgeToInt) (Set.toList $ getIslandBridges i)
 
 
 islandOverFilled :: Island -> Bool
@@ -356,7 +356,6 @@ getNextIsland game island = snd <$> islandPoint `Map.lookupGT` islandMap
     islandMap   = getIslandPointMap game
 
 
---
 -- TODO can I make this better with list monads? Looks like bine for list is
 --      basically concat map which I'm already doing, so probably
 -- TODO Better way to come up with all bridge combinations
@@ -405,5 +404,5 @@ fromRight :: Either a b -> b
 fromRight (Right b) = b
 
 testGame = fromRight $ createIslands [(0,0,1), (2,0,1), (4,0,3), (0, 2, 3), (4, 2, 5), (2, 4, 1), (4, 4, 2)]
-i0 = getFirstIsland testGame                  -- Island at 0,0
-i1 = fromJust $ getNextIsland testGame i0_0   -- Island at 0,2
+i0 = getFirstIsland testGame               -- Island at 0,0
+i1 = fromJust $ getNextIsland testGame i0  -- Island at 0,2
