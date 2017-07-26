@@ -316,26 +316,12 @@ addBridge game island bridge = updateIslands game <$> newIsland1 <*> newIsland2
         updatedIslands = Map.insert (getIslandPoint island) island islandMap
 
 
--- Solving stragety
--- * Start at the first island. Need to try each combination of bridges that
--- * Need to try every possible bridge combinations to fill up the island
--- * If the island cannot be filled with bridges, recurse backwors, or
---   in this case return Nothing, as the game cannot be solved
--- * If the island can be filled with bridges, fill the island then
---   recurse forward to the next island
--- * If the return value of this function is Nothing, that means that
---   every the puzzle cannot be solved, so try to fill the island with a
---   different configuration of bridges and go forward again
--- * If no more valid combinations of bridges can be found for this island
---   return Nothing and let the previous island re-arrange itself.
--- * If this island can be filled with bridges, and there is no other
---   islands in the game grid, run a function that checks to make sure
---   all the bridges are connectied, which should return 'Just game' or
---   nothing depending on if it is valid. If it is valid, then we just
---   solved the puzzle. Congrats.
+-- TODO move this into single recursive loop (was just easier to reason about
+--      this way when developint it)
 solve :: Game -> Maybe Game
-solve game = solveLoop [game] (getIslandPoint $ getFirstIsland game)
+solve game = solveLoop1 (getIslandPoint $ getFirstIsland game) game
   where
+    {-
     solveLoop :: [Game] -> Point -> Maybe Game
     solveLoop [] _   = Nothing
     solveLoop (g:gs) p
@@ -346,8 +332,22 @@ solve game = solveLoop [game] (getIslandPoint $ getFirstIsland game)
                                    gs' -> solveLoop gs' $ fromJust nextIsland
       where
         nextIsland = getNextIsland g p
+    -}
 
+    solveLoop1 :: Point -> Game -> Maybe Game
+    solveLoop1 p g
+        | isGameSolved g       = Just g   -- TODO move this to case of nextIsland, don't check unnecessarily
+        | isNothing nextIsland = Nothing
+        | otherwise            = solveLoop2 filledIslands (fromJust nextIsland)
+      where
+        nextIsland    = getNextIsland g p
+        filledIslands = getPossibleBridges p g
 
+    solveLoop2 :: [Game] -> Point -> Maybe Game
+    solveLoop2 [] _ = Nothing
+    solveLoop2 gs p = case find (isJust) $ map (solveLoop1 p) gs of
+                          Just i  -> i  -- TODO has to be a function for this already
+                          Nothing -> Nothing
 
 
 -- Cases
@@ -421,3 +421,24 @@ fromRight (Right b) = b
 testGame = fromRight $ createIslands [(0,0,1), (2,0,1), (4,0,3), (0, 2, 3), (4, 2, 5), (2, 4, 1), (4, 4, 2)]
 --i0 = getFirstIsland testGame               -- Island at 0,0
 --i1 = fromJust $ getNextIsland testGame i0  -- Island at 0,2
+
+testGame2 = fromRight $ createIslands [(1, 0, 2),
+                                       (5, 0, 4),
+                                       (9, 0, 4),
+                                       (0, 1, 1),
+                                       (1, 2, 4),
+                                       (4, 2, 3),
+                                       (7, 2, 4),
+                                       (9, 2, 5),
+                                       (7, 4, 2),
+                                       (5, 5, 4),
+                                       (9, 5, 4),
+                                       (1, 7, 1),
+                                       (4, 7, 1),
+                                       (7, 7, 1),
+                                       (0, 8, 3),
+                                       (5, 8, 4),
+                                       (1, 9, 1),
+                                       (3, 9, 2),
+                                       (7, 9, 4),
+                                       (9, 9, 4)]
