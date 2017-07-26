@@ -102,6 +102,10 @@ islandOverFilled :: Island -> Bool
 islandOverFilled island = numBridges island > islandValueInt island
 
 
+islandFilled :: Island -> Bool
+islandFilled island = numBridges island == islandValueInt island
+
+
 islandToChar :: Island -> Char
 islandToChar (Island _ One _)   = '1'
 islandToChar (Island _ Two _)   = '2'
@@ -352,29 +356,28 @@ getNextIsland game island = snd <$> islandPoint `Map.lookupGT` islandMap
     islandMap   = getIslandPointMap game
 
 
+--
 -- TODO can I make this better with list monads? Looks like bine for list is
 --      basically concat map which I'm already doing, so probably
 -- TODO Better way to come up with all bridge combinations
--- TODO final step, filter out only islands that are fully filled
--- TODO is it possible that the same combination of bridges could be generated
---      multiple time. Yes, yes it is. We should remove those duplicates so we
---      don't waste cpu time running calculations we have already done (could
---      we just use a set instead of a list for this or something? Or memoization?)
-fillBridges :: Island -> Game -> [Game]
-fillBridges i g
-    | null perms = [g]
-    | otherwise  = (g : perms) ++ concat (map (fillBridges i) perms)
+getPossibleBridges :: Island -> Game -> [Game]
+getPossibleBridges i g = filter (\g' -> islandFilled $ fromJust (getIsland p g')) $ fillBridges p g
   where
-    islandP  = getIslandPoint i
-    allPerms = [addBridge g i (Bridge Up' Single),
-                addBridge g i (Bridge Up' Double),
-                addBridge g i (Bridge Down' Single),
-                addBridge g i (Bridge Down' Double),
-                addBridge g i (Bridge Left' Single),
-                addBridge g i (Bridge Left' Double),
-                addBridge g i (Bridge Right' Single),
-                addBridge g i (Bridge Right' Double)]
-    perms = map (fromJust) $ filter (isJust) allPerms
+    p = getIslandPoint i
+
+    fillBridges :: Point -> Game -> [Game]
+    fillBridges p g = nub $ (g : perms) ++ concat (map (fillBridges p) perms)
+      where
+        island = fromJust $ getIsland p g
+        allPerms = [addBridge g island (Bridge Up' Single),
+                    addBridge g island (Bridge Up' Double),
+                    addBridge g island (Bridge Down' Single),
+                    addBridge g island (Bridge Down' Double),
+                    addBridge g island (Bridge Left' Single),
+                    addBridge g island (Bridge Left' Double),
+                    addBridge g island (Bridge Right' Single),
+                    addBridge g island (Bridge Right' Double)]
+        perms = map (fromJust) $ filter (isJust) allPerms
 
 
 -- Attempt to solve the puzzle
@@ -402,4 +405,5 @@ fromRight :: Either a b -> b
 fromRight (Right b) = b
 
 testGame = fromRight $ createIslands [(0,0,1), (2,0,1), (4,0,3), (0, 2, 3), (4, 2, 5), (2, 4, 1), (4, 4, 2)]
-
+i0 = getFirstIsland testGame                  -- Island at 0,0
+i1 = fromJust $ getNextIsland testGame i0_0   -- Island at 0,2
