@@ -357,24 +357,21 @@ getFirstIsland :: Game -> Point
 getFirstIsland g = fst . fromJust . Map.lookupGE (Point 0 0) $ getIslandPointMap g
 
 
--- TODO can I make this better with list monads? Looks like bine for list is
---      basically concat map which I'm already doing, so probably
--- TODO Better way to come up with all bridge combinations
 getPossibleBridges :: Point -> Game -> [Game]
 getPossibleBridges p g = filter (islandFilled . fromJust . getIsland p) $ fillBridges p g
   where
     fillBridges :: Point -> Game -> [Game]
-    fillBridges p g = nub $ (g : perms) ++ concat (map (fillBridges p) perms)
+    fillBridges p g = nub $ g : (perms >>= fillBridges p)
       where
         island = fromJust $ getIsland p g
-        perms = catMaybes [addBridge g island (Bridge Up' Single),
-                           addBridge g island (Bridge Up' Double),
-                           addBridge g island (Bridge Down' Single),
-                           addBridge g island (Bridge Down' Double),
-                           addBridge g island (Bridge Left' Single),
-                           addBridge g island (Bridge Left' Double),
-                           addBridge g island (Bridge Right' Single),
-                           addBridge g island (Bridge Right' Double)]
+        perms = catMaybes . map (addBridge g island) $ [(Bridge Up' Single),
+                                                        (Bridge Up' Double),
+                                                        (Bridge Down' Single),
+                                                        (Bridge Down' Double),
+                                                        (Bridge Left' Single),
+                                                        (Bridge Left' Double),
+                                                        (Bridge Right' Single),
+                                                        (Bridge Right' Double)]
 
 
 -- TODO account for loops in the game
