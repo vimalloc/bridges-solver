@@ -324,9 +324,7 @@ solve game = solveLoop (getFirstIsland game) game
     solveLoop :: Point -> Game -> Maybe Game
     solveLoop p g = case (getNextPoint g p) of
                         Nothing -> fromBool (isGameSolved g) g
-                        Just p  -> asum . map (solveLoop p) $ gs
-      where
-        gs = getPossibleBridges p g
+                        Just p  -> asum . map (solveLoop p) $ getPossibleBridges p g
 
 
 getNextPoint :: Game -> Point -> Maybe Point
