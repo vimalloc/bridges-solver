@@ -247,6 +247,7 @@ pprint game = pprintLoop 0 0 game
         c = fromMaybe ' ' $ (islandToChar <$> i) <|> (bridgeToChar <$> b)
 
 
+-- TODO don't allow islands at negative points
 createIslands :: [(Int, Int, Int)] -> Either String Game
 createIslands i = traverse createIsland i >>= createGame
   where
@@ -319,7 +320,7 @@ addBridge game island bridge = updateIslands game <$> newIsland1 <*> newIsland2
 -- TODO move this into single recursive loop (was just easier to reason about
 --      this way when developint it)
 solve :: Game -> Maybe Game
-solve game = solveLoop1 (getIslandPoint $ getFirstIsland game) game
+solve game = solveLoop1 (getFirstIsland game) game
   where
     {-
     solveLoop :: [Game] -> Point -> Maybe Game
@@ -344,27 +345,15 @@ solve game = solveLoop1 (getIslandPoint $ getFirstIsland game) game
         filledIslands = getPossibleBridges p g
 
     solveLoop2 :: [Game] -> Point -> Maybe Game
-    solveLoop2 [] _ = Nothing
-    solveLoop2 gs p = case find (isJust) $ map (solveLoop1 p) gs of
-                          Just i  -> i  -- TODO has to be a function for this already
-                          Nothing -> Nothing
-
-
--- Cases
---   * Game is solved, we are done
---   * This island has been filled, run recursion against next loop
---   * The current gaem we are looking at cannot progress any more, return Nothing
---   * Nothing was just returned, try the next game in the list
-
-
-getFirstIsland :: Game -> Island
-getFirstIsland g = snd . fromJust $ smallestPoint `Map.lookupGE` (getIslandPointMap g)
-  where
-    smallestPoint = Point 0 0
+    solveLoop2 gs p = fromJust <$> (find (isJust) $ map (solveLoop1 p) gs)
 
 
 getNextIsland :: Game -> Point -> Maybe Point
 getNextIsland g p = fst <$> p `Map.lookupGT` (getIslandPointMap g)
+
+
+getFirstIsland :: Game -> Point
+getFirstIsland g = fst . fromJust $ (Point 0 0) `Map.lookupGE` (getIslandPointMap g)
 
 
 -- TODO can I make this better with list monads? Looks like bine for list is
@@ -377,16 +366,14 @@ getPossibleBridges p g = filter (\g' -> islandFilled $ fromJust (getIsland p g')
     fillBridges p g = nub $ (g : perms) ++ concat (map (fillBridges p) perms)
       where
         island = fromJust $ getIsland p g
-        allPerms = [addBridge g island (Bridge Up' Single),
-                    addBridge g island (Bridge Up' Double),
-                    addBridge g island (Bridge Down' Single),
-                    addBridge g island (Bridge Down' Double),
-                    addBridge g island (Bridge Left' Single),
-                    addBridge g island (Bridge Left' Double),
-                    addBridge g island (Bridge Right' Single),
-                    addBridge g island (Bridge Right' Double)]
-        perms = map (fromJust) $ filter (isJust) allPerms
-
+        perms = catMaybes [addBridge g island (Bridge Up' Single),
+                           addBridge g island (Bridge Up' Double),
+                           addBridge g island (Bridge Down' Single),
+                           addBridge g island (Bridge Down' Double),
+                           addBridge g island (Bridge Left' Single),
+                           addBridge g island (Bridge Left' Double),
+                           addBridge g island (Bridge Right' Single),
+                           addBridge g island (Bridge Right' Double)]
 
 
 -- TODO account for loops in the game
@@ -394,34 +381,21 @@ isGameSolved :: Game -> Bool
 isGameSolved g = all (islandFilled) $ getIslands g
 
 
--- Attempt to solve the puzzle
---  * Making sure no bridges overlap
---  * Making sure all islands have the correct number of bridges coming from them
---  * Making sure all islands are connected
---
 -- Have this module only expor
 --  * createGame :: [Point] -> Game
 --  * solvePuzzle :: Game -> Maybe Game
 --  * ppring :: Game -> String
 --
--- If I understnad the import/export system correctly, this will not allow
--- users to modify the internals of the [Island] and create an invalid or
--- impossible situation. I'm not sure if this is like java where they *really*
--- can't modify the internals, or if it's like python where they are just
--- encouraged not to. But either way, that should be good enough for this.
---
 -- Finally, build another program on top of this which include the main
 -- function, imports this module, and fetches games from the puzzle bridges
 -- website, and solves them. All the IO stuff happens here
+
 
 -- Helper function so I can more easily play with createBridges in repl
 fromRight :: Either a b -> b
 fromRight (Right b) = b
 
 testGame = fromRight $ createIslands [(0,0,1), (2,0,1), (4,0,3), (0, 2, 3), (4, 2, 5), (2, 4, 1), (4, 4, 2)]
---i0 = getFirstIsland testGame               -- Island at 0,0
---i1 = fromJust $ getNextIsland testGame i0  -- Island at 0,2
-
 testGame2 = fromRight $ createIslands [(1, 0, 2),
                                        (5, 0, 4),
                                        (9, 0, 4),
