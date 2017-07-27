@@ -6,6 +6,14 @@ import Control.Monad
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 
+-- TODO should replace all Island -> Game functions with Point -> Game, so
+--      that you cannot accidently pass in an 'old' island' that is no longer
+--      current with the rest of the game (caused me some confusion when
+--      playing around in the repl)
+--
+-- TODO I think there are probably several places here I could swap my manual
+--      recursion with folds. Look into this.
+
 -- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
 -- Up' and Down' use the ticks to stay consistant with Left' and Right'.
 data BridgeDirection = Up'
@@ -166,8 +174,8 @@ pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Left'  = x1 < x2 && y1 == y2
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Right' = x1 > x2 && y1 == y2
 
 
-getRemoteIsland :: Island -> BridgeDirection -> Game -> Maybe Island
-getRemoteIsland i direction game = getRemoteIslandLoop startPoint
+findRemoteIsland :: Island -> BridgeDirection -> Game -> Maybe Island
+findRemoteIsland i direction game = getRemoteIslandLoop startPoint
   where
     incPoint   = traverseBridge direction
     startPoint = incPoint $ getIslandPoint i
@@ -186,6 +194,9 @@ getRemoteIsland i direction game = getRemoteIslandLoop startPoint
         maybeIsland = p `getIsland` game
         isBridge    = isJust $ bridgeAtPoint p game
         nextPoint   = incPoint p
+
+
+
 
 
 getBridgePoints :: Island -> Bridge -> Game -> [Point]
@@ -297,7 +308,7 @@ createIslands i = traverse createIsland i >>= createGame
 addBridge :: Game -> Island -> Bridge -> Maybe Game
 addBridge game island bridge = updateIslands game <$> newIsland1 <*> newIsland2
   where
-    remote_island = getRemoteIsland island (getBridgeDirection bridge) game
+    remote_island = findRemoteIsland island (getBridgeDirection bridge) game
     newIsland1    = addBridgeToIsland bridge island
     newIsland2    = remote_island >>= addBridgeToIsland (reverseBridge bridge)
 
@@ -352,9 +363,40 @@ getPossibleBridges p g = filter (islandFilled . fromJust . getIsland p) $ fillBr
                                                         Bridge Right' Double]
 
 
--- TODO account for loops in the game
 isGameSolved :: Game -> Bool
-isGameSolved = all (islandFilled) . getIslands
+isGameSolved g = allIslandsFilled && allIslandsConnected
+  where
+    firstIsland         = fromJust $ getIsland (getFirstIsland g) g
+    allIslandsFilled    = all (islandFilled) . getIslands $ g
+    allIslandsConnected = (length $ getIslands g) == (length $ connectedIslands g firstIsland)
+
+
+getRemoteIslands :: Island -> Game -> [Island]
+getRemoteIslands i g = map (getRemoteIsland i g) bridges
+  where
+    bridges = Set.toList $ getIslandBridges i
+
+    getRemoteIsland :: Island -> Game -> Bridge -> Island
+    getRemoteIsland i g b = fromJust $ getRemoteIslandLoop startPoint
+      where
+        incPoint   = traverseBridge $ getBridgeDirection b
+        startPoint = incPoint $ getIslandPoint i
+
+        getRemoteIslandLoop :: Point -> Maybe Island
+        getRemoteIslandLoop p = case (p `getIsland` g) of
+                                     Just i  -> Just i
+                                     Nothing -> getRemoteIslandLoop $ incPoint p
+
+
+connectedIslands :: Game -> Island -> [Island]
+connectedIslands g i = Set.toList $ connectedIslandsLoop g Set.empty i
+  where
+    connectedIslandsLoop :: Game -> (Set.Set Island) -> Island -> (Set.Set Island)
+    connectedIslandsLoop g s i = newSet `Set.union` test
+      where
+        newSet  = i `Set.insert` s
+        remotes = (Set.fromList $ getRemoteIslands i g) `Set.difference` s
+        test = Set.unions . Set.toList $ Set.map (connectedIslandsLoop g newSet) remotes
 
 
 fromBool :: Bool -> a -> Maybe a
@@ -376,6 +418,8 @@ fromBool True a  = Just a
 fromRight :: Either a b -> b
 fromRight (Right b) = b
 
+testGame1 = fromRight $ createIslands [(0, 0, 1), (2, 0, 1), (0, 2, 1), (2, 2, 1)]
+
 testGame2 = fromRight $ createIslands [(1, 0, 2), (5, 0, 4), (9, 0, 4),
                                        (0, 1, 1), (1, 2, 4), (4, 2, 3),
                                        (7, 2, 4), (9, 2, 5), (7, 4, 2),
@@ -384,10 +428,15 @@ testGame2 = fromRight $ createIslands [(1, 0, 2), (5, 0, 4), (9, 0, 4),
                                        (5, 8, 4), (1, 9, 1), (3, 9, 2),
                                        (7, 9, 4), (9, 9, 4)]
 
+
+
 main :: IO ()
 main = do
-    putStrLn "~~~~~~~~~~~~~~~~~~~~~\n"
-    putStrLn . pprint $ testGame2
-    putStrLn "~~~~~~~~~~~~~~~~~~~~~\n"
-    putStrLn . pprint . fromJust . solve $ testGame2
-    putStrLn "~~~~~~~~~~~~~~~~~~~~~"
+    let game = testGame2
+    let width = islandsMaxX (getIslands game) * 2 + 1
+    let border = replicate width '~'  ++ "\n"
+    putStrLn border
+    putStrLn . pprint $ game
+    putStrLn border
+    putStrLn . pprint . fromJust . solve $ game
+    putStrLn border
