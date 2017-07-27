@@ -385,4 +385,9 @@ testGame2 = fromRight $ createIslands [(1, 0, 2), (5, 0, 4), (9, 0, 4),
                                        (7, 9, 4), (9, 9, 4)]
 
 main :: IO ()
-main = putStrLn . pprint . fromJust . solve $ testGame2
+main = do
+    putStrLn "~~~~~~~~~~~~~~~~~~~~~\n"
+    putStrLn . pprint $ testGame2
+    putStrLn "~~~~~~~~~~~~~~~~~~~~~\n"
+    putStrLn . pprint . fromJust . solve $ testGame2
+    putStrLn "~~~~~~~~~~~~~~~~~~~~~"
