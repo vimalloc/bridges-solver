@@ -196,9 +196,6 @@ findRemoteIsland i direction game = getRemoteIslandLoop startPoint
         nextPoint   = incPoint p
 
 
-
-
-
 getBridgePoints :: Island -> Bridge -> Game -> [Point]
 getBridgePoints island bridge game
     | not bridgeInIsland = error "Bridge not on island"
@@ -259,7 +256,6 @@ pprint game = pprintLoop 0 0 game
         c = fromMaybe " " $ (islandToString <$> i) <|> (bridgeToString <$> b)
 
 
--- TODO don't allow islands at negative points
 createIslands :: [(Int, Int, Int)] -> Either String Game
 createIslands i = traverse createIsland i >>= createGame
   where
@@ -270,6 +266,7 @@ createIslands i = traverse createIsland i >>= createGame
     createGame islands
         | hasDuplicateIslands islands game  = Left "Multiple islands exist at the same point"
         | hasNoSpaceForBridges islands game = Left "Two islands exists without room for a bridge between them"
+        | hasNegativeIslandPoints islands   = Left "Island points cannot be negative"
         | otherwise                         = Right game
       where
         iMap = Map.fromList $ [(getIslandPoint i, i) | i <- islands]
@@ -293,6 +290,12 @@ createIslands i = traverse createIsland i >>= createGame
             | otherwise                           = False
           where
             points = getIslandPointMap game
+
+    hasNegativeIslandPoints :: [Island] -> Bool
+    hasNegativeIslandPoints i = any (isNegative . getIslandPoint) i
+      where
+        isNegative :: Point -> Bool
+        isNegative (Point x y) = x < 0 || y < 0
 
 
 -- We do some trickery here. Instead of adding the bridge just to this
@@ -404,16 +407,6 @@ fromBool False _ = Nothing
 fromBool True a  = Just a
 
 
--- Have this module only expor
---  * createGame :: [Point] -> Game
---  * solvePuzzle :: Game -> Maybe Game
---  * ppring :: Game -> String
---
--- Finally, build another program on top of this which include the main
--- function, imports this module, and fetches games from the puzzle bridges
--- website, and solves them. All the IO stuff happens here
-
-
 -- Helper function so I can more easily play with createBridges in repl
 fromRight :: Either a b -> b
 fromRight (Right b) = b
@@ -429,7 +422,11 @@ testGame2 = fromRight $ createIslands [(1, 0, 2), (5, 0, 4), (9, 0, 4),
                                        (7, 9, 4), (9, 9, 4)]
 
 
-
+-- TODO this is just a dummy main for testing stuff. What I want to do next
+--      is make this stuff a module (export createGame, solvePuzzle, pprint)
+--      and build another application on top of this which goes out to the
+--      puzzle bridges website and downloads/solves games from there. All IO
+--      will happen there.
 main :: IO ()
 main = do
     let game = testGame2
