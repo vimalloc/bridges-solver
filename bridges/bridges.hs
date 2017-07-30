@@ -316,7 +316,7 @@ addBridge game point bridge = do
 
 
 solve :: Game -> Maybe Game
-solve game = solveLoop (getFirstIsland game) game
+solve game = solveLoop (getFirstPoint game) game
   where
     solveLoop :: Point -> Game -> Maybe Game
     solveLoop p g = case (getNextPoint g p) of
@@ -328,8 +328,8 @@ getNextPoint :: Game -> Point -> Maybe Point
 getNextPoint g p = fst <$> p `Map.lookupGT` (getIslandPointMap g)
 
 
-getFirstIsland :: Game -> Point
-getFirstIsland g = fst . fromJust . Map.lookupGE (Point 0 0) $ getIslandPointMap g
+getFirstPoint :: Game -> Point
+getFirstPoint g = fst . fromJust . Map.lookupGE (Point 0 0) $ getIslandPointMap g
 
 
 getPossibleBridges :: Game -> Point -> [Game]
@@ -351,13 +351,13 @@ getPossibleBridges g p = filter (islandFilled . getIsland p) $ fillBridges p g
 isGameSolved :: Game -> Bool
 isGameSolved g = allIslandsFilled && allIslandsConnected
   where
-    firstIsland         = getFirstIsland g
+    firstIsland         = getFirstPoint g
     allIslandsFilled    = all (islandFilled) . getIslands $ g
     allIslandsConnected = getIslandPointMap g == connectedIslands g
 
 
 connectedIslands :: Game -> (Map.Map Point Island)
-connectedIslands game = loop game Map.empty (getFirstIsland game)
+connectedIslands game = loop game Map.empty (getFirstPoint game)
   where
     loop :: Game -> (Map.Map Point Island) -> Point -> (Map.Map Point Island)
     loop g iMap p = foldr (Map.union) newIMap $ map (loop g newIMap) remotes
