@@ -353,18 +353,17 @@ isGameSolved g = allIslandsFilled && allIslandsConnected
   where
     firstIsland         = getFirstIsland g
     allIslandsFilled    = all (islandFilled) . getIslands $ g
-    allIslandsConnected = (Map.size $ getIslandPointMap g) == (length $ connectedPoints g firstIsland)
+    allIslandsConnected = getIslandPointMap g == connectedIslands g
 
 
-connectedPoints :: Game -> Point -> [Point]
-connectedPoints g p = loop g [] p
+connectedIslands :: Game -> (Map.Map Point Island)
+connectedIslands game = loop game Map.empty (getFirstIsland game)
   where
-    loop :: Game -> [Point] -> Point -> [Point]
-    loop g visitedPoints islandPoint = nub (newPoints ++ test)
+    loop :: Game -> (Map.Map Point Island) -> Point -> (Map.Map Point Island)
+    loop g iMap p = foldr (Map.union) newIMap $ map (loop g newIMap) remotes
       where
-        newPoints = islandPoint : visitedPoints
-        remotes = [p | p <- getRemotePoints islandPoint g, p `notElem` newPoints]
-        test = nub $ newPoints ++ (concat . map (loop g newPoints) $ remotes)
+        newIMap = Map.insert p (getIsland p g) iMap
+        remotes = filter (`Map.notMember` newIMap) $ getRemotePoints p g
 
 
 getRemotePoints :: Point -> Game -> [Point]
