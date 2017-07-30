@@ -320,8 +320,7 @@ solve game = solveLoop (getFirstIsland game) game
   where
     solveLoop :: Point -> Game -> Maybe Game
     solveLoop p g = case (getNextPoint g p) of
-                        --Nothing -> fromBool (isGameSolved g) g
-                        Nothing -> Just g
+                        Nothing -> fromBool (isGameSolved g) g
                         Just p  -> asum . map (solveLoop p) $ getPossibleBridges g p
 
 
@@ -363,8 +362,8 @@ connectedPoints g p = loop g [] p
     loop :: Game -> [Point] -> Point -> [Point]
     loop g visitedPoints islandPoint = nub (newPoints ++ test)
       where
-        newPoints = nub $ islandPoint : visitedPoints -- TODO set or onlly checking if this element is more effeciant
-        remotes = [i | i <- getRemotePoints p g, i `notElem` newPoints]
+        newPoints = islandPoint : visitedPoints
+        remotes = [p | p <- getRemotePoints islandPoint g, p `notElem` newPoints]
         test = nub $ newPoints ++ (concat . map (loop g newPoints) $ remotes)
 
 
