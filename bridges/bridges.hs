@@ -81,24 +81,20 @@ intToIslandValue 8 = Right Eight
 intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
 
 
-islandValueToInt :: IslandValue -> Int
-islandValueToInt One   = 1
-islandValueToInt Two   = 2
-islandValueToInt Three = 3
-islandValueToInt Four  = 4
-islandValueToInt Five  = 5
-islandValueToInt Six   = 6
-islandValueToInt Seven = 7
-islandValueToInt Eight = 8
+islandValueInt :: Island -> Int
+islandValueInt (Island One _)   = 1
+islandValueInt (Island Two _)   = 2
+islandValueInt (Island Three _) = 3
+islandValueInt (Island Four _)  = 4
+islandValueInt (Island Five _)  = 5
+islandValueInt (Island Six  _)  = 6
+islandValueInt (Island Seven _) = 7
+islandValueInt (Island Eight _) = 8
 
 
 bridgeToInt :: Bridge -> Int
 bridgeToInt (Bridge _ Single) = 1
 bridgeToInt (Bridge _ Double) = 2
-
-
-islandValueInt :: Island -> Int
-islandValueInt = islandValueToInt . getIslandValue
 
 
 numBridges :: Island -> Int
@@ -193,16 +189,12 @@ findRemoteIslandPoint p d g = getRemoteIslandLoop $ incPoint p
         | otherwise                 = getRemoteIslandLoop $ incPoint p
 
 
--- TODO make this a bridgeDirection instaed of bridge
-getBridgePoints :: Point -> Bridge -> Game -> [Point]
-getBridgePoints p b g = getBridgePointsLoop $ incPoint p
+getBridgePoints :: Point -> BridgeDirection -> Game -> [Point]
+getBridgePoints p d g =  foldr (:) [] . takeWhile (notIsland g) $ allBridgePoints
   where
-    incPoint = traverseBridge $ getBridgeDirection b
-
-    getBridgePointsLoop :: Point -> [Point]
-    getBridgePointsLoop p
-        | isIsland p g = []
-        | otherwise    = p : getBridgePointsLoop (incPoint p)
+    incPoint        = traverseBridge d
+    allBridgePoints = incPoint p : map (incPoint) allBridgePoints
+    notIsland g p   = not (isIsland p g)
 
 
 -- TODO think i can do better here. I don't need to check for the actual points,
@@ -225,7 +217,7 @@ lookupBridge p g = asum . map (test) $ getIslandPoints g
       where
         direction       = getBridgeDirection b
         couldBeOnBridge = pointCouldBeOnBridge p p' direction
-        bridgePoints    = getBridgePoints p' b g
+        bridgePoints    = getBridgePoints p' (getBridgeDirection b) g
 
 
 toString :: Game -> String
@@ -269,15 +261,14 @@ createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
         minY = minimum . map (getY) . Map.keys $ iMap
 
     islandsTouching :: (Map.Map Point Island) -> Bool
-    islandsTouching iMap = any (hasNoSpaceForBridge) $ Map.keys iMap
+    islandsTouching iMap = any (hasAdjacentIsland) $ Map.keys iMap
       where
-        hasNoSpaceForBridge :: Point -> Bool
-        hasNoSpaceForBridge (Point x y)
-            | (Point x (y-1)) `Map.member` iMap = True
-            | (Point x (y+1)) `Map.member` iMap = True
-            | (Point (x-1) y) `Map.member` iMap = True
-            | (Point (x+1) y) `Map.member` iMap = True
-            | otherwise                         = False
+        hasAdjacentIsland :: Point -> Bool
+        hasAdjacentIsland (Point x y) = any (`Map.member` iMap) [(Point x (y-1)),
+                                                                 (Point x (y+1)),
+                                                                 (Point (x-1) y),
+                                                                 (Point (x+1) y)]
+
 
 -- We do some trickery here. Instead of adding the bridge just to this
 -- island, we also add the inverse of this bridge to the remote island.
@@ -293,10 +284,10 @@ createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
 -- TODO Can I make this more elegant without a do block here?
 addBridge :: Game -> Point -> Bridge -> Maybe Game
 addBridge game point bridge = do
-    remotePoint  <- findRemoteIslandPoint point (getBridgeDirection bridge) game
+    remotePoint     <- findRemoteIslandPoint point (getBridgeDirection bridge) game
     let remoteBridge = reverseBridge bridge
     let island       = getIsland point game
-    let remoteIsland = lookupIsland remotePoint game
+    let remoteIsland = getIsland remotePoint game
     newIsland1      <- addBridgeToIsland bridge island
     newIsland2      <- addBridgeToIsland remoteBridge remoteIsland
     return $ updateIsland remotePoint newIsland2 $ updateIsland point newIsland1 game
