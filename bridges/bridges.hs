@@ -90,7 +90,7 @@ bridgeToInt (Bridge _ Double) = 2
 
 
 numBridges :: Island -> Int
-numBridges = foldr (+) 0 . map (bridgeToInt) . Set.toList . getIslandBridges
+numBridges = Set.foldr ((+) . bridgeToInt) 0 . getIslandBridges
 
 
 islandOverFilled :: Island -> Bool
@@ -173,6 +173,15 @@ findRemoteIslandPoint p d g = find (`isIsland` g) . takeWhile (onBridge) $ allPo
     onBoard p  = (getX p <= getXMax g) && (getX p >= 0) &&
                  (getY p <= getYMax g) && (getY p >= 0)
     onBridge p = onBoard p && isBridge p
+
+
+-- Cannot use findRemoteIslandPoint here, as that will return nothing if it
+-- crosses a bridge, and this assumes a bridge has already been placed and
+-- are following it to the remote island
+getRemoteIslandPoint :: Point -> Game -> BridgeDirection -> Point
+getRemoteIslandPoint p g d = fromJust $ find (`isIsland` g) allPoints
+  where
+    allPoints = iterate (traverseBridge d) $ traverseBridge d p
 
 
 getBridgePoints :: Point -> BridgeDirection -> Game -> [Point]
@@ -335,20 +344,9 @@ connectedIslands game = loop game Map.empty (getFirstPoint game)
 
 
 getRemotePoints :: Point -> Game -> [Point]
-getRemotePoints p g = map (getRemotePoint p g) bridges
+getRemotePoints p g = map (getRemoteIslandPoint p g . getBridgeDirection) bridges
   where
-    island  = getIsland p g
-    bridges = Set.toList $ getIslandBridges island
-
-    getRemotePoint :: Point -> Game -> Bridge -> Point
-    getRemotePoint p g b = getRemotePointLoop $ incPoint p
-      where
-        incPoint   = traverseBridge $ getBridgeDirection b
-
-        getRemotePointLoop :: Point -> Point
-        getRemotePointLoop p = case (p `lookupIsland` g) of
-                                     Just i  -> p
-                                     Nothing -> getRemotePointLoop $ incPoint p
+    bridges = Set.toList . getIslandBridges $ getIsland p g
 
 
 fromBool :: Bool -> a -> Maybe a
