@@ -168,11 +168,11 @@ pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Right' = x1 > x2 && y1 == y2
 findRemoteIslandPoint :: Point -> BridgeDirection -> Game -> Maybe Point
 findRemoteIslandPoint p d g = find (`isIsland` g) . takeWhile (onBridge) $ allPoints
   where
-    allPoints  = iterate (traverseBridge d) $ traverseBridge d p
-    isBridge p = isNothing $ lookupBridge p g
-    onBoard p  = (getX p <= getXMax g) && (getX p >= 0) &&
-                 (getY p <= getYMax g) && (getY p >= 0)
-    onBridge p = onBoard p && isBridge p
+    allPoints   = iterate (traverseBridge d) $ traverseBridge d p
+    notBridge p = isNothing $ lookupBridge p g
+    onBoard p   = (getX p <= getXMax g) && (getX p >= 0) &&
+                  (getY p <= getYMax g) && (getY p >= 0)
+    onBridge p  = onBoard p && notBridge p
 
 
 getBridgePoints :: Point -> BridgeDirection -> Game -> [Point]
