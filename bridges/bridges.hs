@@ -235,14 +235,13 @@ toString g = toStringLoop 0 0
     toStringLoop x y
         | y > (getYMax g) = ""
         | x > (getXMax g) = "\n" ++ toStringLoop 0 (y+1)
-        | otherwise       = s ++ " " ++ toStringLoop (x+1) y
+        | otherwise       = s ++ ' ' : toStringLoop (x+1) y
       where
         i = lookupIsland (Point x y) g
         b = lookupBridge (Point x y) g
         s = fromMaybe " " $ (islandToString <$> i) <|> (bridgeToString <$> b)
 
 
--- TODO check has no space for bridge
 createGame :: [(Int, Int, Int)] -> Either String Game
 createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
   where
@@ -260,7 +259,8 @@ createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
 
     createGameFromMap :: (Map.Map Point Island) -> Either String Game
     createGameFromMap iMap
-        | minX < 0 || minY < 0 = Left "Island points must be positive"
+        | minX < 0 || minY < 0 = Left "Island points cannot be negative"
+        | islandsTouching iMap = Left "Two islands cannot be directly next to each other"
         | otherwise            = Right (Game maxX maxY iMap)
       where
         maxX = maximum . map (getX) . Map.keys $ iMap
@@ -268,20 +268,16 @@ createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
         minX = minimum . map (getX) . Map.keys $ iMap
         minY = minimum . map (getY) . Map.keys $ iMap
 
-    {-
-    hasNoSpaceForBridges :: [Island] -> Game -> Bool
-    hasNoSpaceForBridges islands game = any (hasNoSpaceForBridge) islands
+    islandsTouching :: (Map.Map Point Island) -> Bool
+    islandsTouching iMap = any (hasNoSpaceForBridge) $ Map.keys iMap
       where
-        hasNoSpaceForBridge :: Island -> Bool
-        hasNoSpaceForBridge (Island (Point x y) _ _)
-            | (Point x (y-1)) `Map.member` points = True
-            | (Point x (y+1)) `Map.member` points = True
-            | (Point (x-1) y) `Map.member` points = True
-            | (Point (x+1) y) `Map.member` points = True
-            | otherwise                           = False
-          where
-            points = getIslandPointMap game
-    -}
+        hasNoSpaceForBridge :: Point -> Bool
+        hasNoSpaceForBridge (Point x y)
+            | (Point x (y-1)) `Map.member` iMap = True
+            | (Point x (y+1)) `Map.member` iMap = True
+            | (Point (x-1) y) `Map.member` iMap = True
+            | (Point (x+1) y) `Map.member` iMap = True
+            | otherwise                         = False
 
 -- We do some trickery here. Instead of adding the bridge just to this
 -- island, we also add the inverse of this bridge to the remote island.
@@ -293,14 +289,16 @@ createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
 -- This allows us to to very quickly calculate how many bridges are in an
 -- island (without having to iterative over all the other islands) at the
 -- expense of a little extra space and a slighly more complicated schema
+--
+-- TODO Can I make this more elegant without a do block here?
 addBridge :: Game -> Point -> Bridge -> Maybe Game
 addBridge game point bridge = do
-    let remoteBridge = reverseBridge bridge
-    island       <- lookupIsland point game
     remotePoint  <- findRemoteIslandPoint point (getBridgeDirection bridge) game
-    remoteIsland <- lookupIsland remotePoint game
-    newIsland1   <- addBridgeToIsland bridge island
-    newIsland2   <- addBridgeToIsland remoteBridge remoteIsland
+    let remoteBridge = reverseBridge bridge
+    let island       = getIsland point game
+    let remoteIsland = lookupIsland remotePoint game
+    newIsland1      <- addBridgeToIsland bridge island
+    newIsland2      <- addBridgeToIsland remoteBridge remoteIsland
     return $ updateIsland remotePoint newIsland2 $ updateIsland point newIsland1 game
   where
     addBridgeToIsland :: Bridge -> Island -> Maybe Island
