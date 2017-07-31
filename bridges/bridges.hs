@@ -6,14 +6,6 @@ import Control.Monad
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 
--- TODO should replace all Island -> Game functions with Point -> Game, so
---      that you cannot accidently pass in an 'old' island' that is no longer
---      current with the rest of the game (caused me some confusion when
---      playing around in the repl)
---
--- TODO I think there are probably several places here I could swap my manual
---      recursion with folds. Look into this.
-
 -- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
 -- Up' and Down' use the ticks to stay consistant with Left' and Right'.
 data BridgeDirection = Up'
@@ -174,13 +166,13 @@ pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Right' = x1 > x2 && y1 == y2
 
 
 findRemoteIslandPoint :: Point -> BridgeDirection -> Game -> Maybe Point
-findRemoteIslandPoint p d g = find (`isIsland` g) . takeWhile (valid) $ allPoints
+findRemoteIslandPoint p d g = find (`isIsland` g) . takeWhile (onBridge) $ allPoints
   where
     allPoints  = iterate (traverseBridge d) $ traverseBridge d p
     isBridge p = isNothing $ lookupBridge p g
-    onBoard p  = (getX p <= getXMax g) && (getY p <= getYMax g) &&
-                 (getX p >= 0) && (getY p >= 0)
-    valid p    = onBoard p && isBridge p
+    onBoard p  = (getX p <= getXMax g) && (getX p >= 0) &&
+                 (getY p <= getYMax g) && (getY p >= 0)
+    onBridge p = onBoard p && isBridge p
 
 
 getBridgePoints :: Point -> BridgeDirection -> Game -> [Point]
@@ -320,14 +312,8 @@ getPossibleBridges g p = filter (islandFilled . getIsland p) $ fillBridges p g
     fillBridges :: Point -> Game -> [Game]
     fillBridges p g = nub $ g : (perms >>= fillBridges p)
       where
-        perms = catMaybes . map (addBridge g p) $ [Bridge Up' Single,
-                                                   Bridge Up' Double,
-                                                   Bridge Down' Single,
-                                                   Bridge Down' Double,
-                                                   Bridge Left' Single,
-                                                   Bridge Left' Double,
-                                                   Bridge Right' Single,
-                                                   Bridge Right' Double]
+        bridgeCombinations = liftA2 (Bridge) [Up', Down', Left', Right'] [Single, Double]
+        perms = catMaybes . map (addBridge g p) $ bridgeCombinations
 
 
 isGameSolved :: Game -> Bool
