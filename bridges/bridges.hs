@@ -6,8 +6,8 @@ import Control.Monad
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 
--- TODO add assertions about points being island points in the game map for
---      given methods
+-- TODO add assertions when we have functions that take a game and a point and
+--      expect that the point is an island on the game.
 
 -- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
 -- Up' and Down' use the ticks to stay consistant with Left' and Right'.
@@ -189,39 +189,26 @@ lookupRemoteIslandPoint p d g
     islandPoint    = nextPoint d . last $ notOverlapping
 
 
--- TODO add assertion that resulting point is an island
 getRemoteIslandPoint :: Point -> Game -> BridgeDirection -> Point
 getRemoteIslandPoint p g d = nextPoint d . last $ getBridgePoints p d g
 
 
-pointCouldBeOnBridge :: Point -> Point -> BridgeDirection -> Bool
-pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Up'    = x1 == x2 && y1 < y2
-pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Down'  = x1 == x2 && y1 > y2
-pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Left'  = x1 < x2 && y1 == y2
-pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Right' = x1 > x2 && y1 == y2
+couldBeOnBridge :: Point -> Point -> BridgeDirection -> Bool
+couldBeOnBridge (Point x1 y1) (Point x2 y2) Up'    = x1 == x2 && y1 < y2
+couldBeOnBridge (Point x1 y1) (Point x2 y2) Down'  = x1 == x2 && y1 > y2
+couldBeOnBridge (Point x1 y1) (Point x2 y2) Left'  = x1 < x2 && y1 == y2
+couldBeOnBridge (Point x1 y1) (Point x2 y2) Right' = x1 > x2 && y1 == y2
 
 
--- TODO think i can do better here. I don't need to check for the actual points,
---      I just need to filter out so only the bridges on the same horizontal or
---      vertical line are left in a list, then select the one that is closes to
---      the point. Think that should be faster as im no longer iterating
---      bridges (twice for that matter), but just doing math on points, and
---      filtering is cheap.
 lookupBridge :: Point -> Game -> Maybe Bridge
-lookupBridge p g = asum . map (test) $ getIslandPoints g
+lookupBridge searchP game = asum . map (searchGameBridges) $ getIslandPoints game
   where
-    test :: Point -> Maybe Bridge  -- TODO better name for this
-    test islandPoint = find (pointOnBridge islandPoint) bridges
+    searchGameBridges :: Point -> Maybe Bridge
+    searchGameBridges p = find (\b -> elem searchP $ getBridgePoints p (getBridgeDirection b) game)
+                        . filter (couldBeOnBridge searchP p . getBridgeDirection) $ bridges
       where
-        bridges = getIslandBridges $ getIsland islandPoint g
-
-    -- TODO the p / p' naming here is confusing. Do better.
-    pointOnBridge :: Point -> Bridge -> Bool
-    pointOnBridge p' b = couldBeOnBridge && p `elem` bridgePoints
-      where
-        direction       = getBridgeDirection b
-        couldBeOnBridge = pointCouldBeOnBridge p p' direction
-        bridgePoints    = getBridgePoints p' (getBridgeDirection b) g
+        island = getIsland p game
+        bridges = Set.toList $ getIslandBridges island
 
 
 toString :: Game -> String
@@ -284,8 +271,6 @@ createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
 -- This allows us to to very quickly calculate how many bridges are in an
 -- island (without having to iterative over all the other islands) at the
 -- expense of a little extra space and a slighly more complicated schema
---
--- TODO Can I make this more elegant without a do block here?
 addBridge :: Game -> Point -> Bridge -> Maybe Game
 addBridge game point bridge = do
     remotePoint     <- lookupRemoteIslandPoint point (getBridgeDirection bridge) game
@@ -359,7 +344,7 @@ getRemotePoints p g = map (getRemoteIslandPoint p g . getBridgeDirection) bridge
     bridges = Set.toList . getIslandBridges $ getIsland p g
 
 
--- Helper function so I can more easily play with createBridges in repl
+-- Helper stuff so I can play with games in the repl
 fromRight :: Either a b -> b
 fromRight (Right b) = b
 
