@@ -6,6 +6,9 @@ import Control.Monad
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 
+-- TODO add assertions about points being island points in the game map for
+--      given methods
+
 -- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
 -- Up' and Down' use the ticks to stay consistant with Left' and Right'.
 data BridgeDirection = Up'
@@ -61,6 +64,11 @@ instance Ord Bridge where
     (Bridge d1 _) `compare` (Bridge d2 _) = d1 `compare` d2
 
 
+whenBool :: Bool -> a -> Maybe a
+whenBool False _ = Nothing
+whenBool True a  = pure a
+
+
 intToIslandValue :: Int -> Either String IslandValue
 intToIslandValue 1 = Right One
 intToIslandValue 2 = Right Two
@@ -103,6 +111,10 @@ islandFilled i = numBridges i == islandValueInt i
 
 isIsland :: Point -> Game -> Bool
 isIsland p g = p `Map.member` (getIslandPointMap g)
+
+
+isNotIsland :: Point -> Game -> Bool
+isNotIsland p g = not $ isIsland p g
 
 
 -- Terminal codes to make result blue and bold
@@ -151,11 +163,35 @@ getIsland :: Point -> Game -> Island
 getIsland p g = fromJust $ lookupIsland p g
 
 
-traverseBridge :: BridgeDirection -> Point -> Point
-traverseBridge Up' (Point x y)    = (Point x (y-1))
-traverseBridge Down' (Point x y)  = (Point x (y+1))
-traverseBridge Left' (Point x y)  = (Point (x-1) y)
-traverseBridge Right' (Point x y) = (Point (x+1) y)
+nextPoint :: BridgeDirection -> Point -> Point
+nextPoint Up' (Point x y)    = (Point x (y-1))
+nextPoint Down' (Point x y)  = (Point x (y+1))
+nextPoint Left' (Point x y)  = (Point (x-1) y)
+nextPoint Right' (Point x y) = (Point (x+1) y)
+
+
+getBridgePoints :: Point -> BridgeDirection -> Game -> [Point]
+getBridgePoints p d g = takeWhile (\p -> onBoard p && isNotIsland p g) allPoints
+  where
+    startPoint = nextPoint d p
+    allPoints = iterate (nextPoint d) $ startPoint
+    onBoard p  = (getX p <= getXMax g) && (getX p >= 0) &&
+                 (getY p <= getYMax g) && (getY p >= 0)
+
+
+lookupRemoteIslandPoint :: Point -> BridgeDirection -> Game -> Maybe Point
+lookupRemoteIslandPoint p d g
+    | null notOverlapping = Nothing
+    | otherwise           = whenBool (isIsland islandPoint g) islandPoint
+  where
+    bridgePoints   = getBridgePoints p d g
+    notOverlapping = takeWhile (\p -> isNothing $ lookupBridge p g) $ bridgePoints
+    islandPoint    = nextPoint d . last $ notOverlapping
+
+
+-- TODO add assertion that resulting point is an island
+getRemoteIslandPoint :: Point -> Game -> BridgeDirection -> Point
+getRemoteIslandPoint p g d = nextPoint d . last $ getBridgePoints p d g
 
 
 pointCouldBeOnBridge :: Point -> Point -> BridgeDirection -> Bool
@@ -163,32 +199,6 @@ pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Up'    = x1 == x2 && y1 < y2
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Down'  = x1 == x2 && y1 > y2
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Left'  = x1 < x2 && y1 == y2
 pointCouldBeOnBridge (Point x1 y1) (Point x2 y2) Right' = x1 > x2 && y1 == y2
-
-
-findRemoteIslandPoint :: Point -> BridgeDirection -> Game -> Maybe Point
-findRemoteIslandPoint p d g = find (`isIsland` g) . takeWhile (onBridge) $ allPoints
-  where
-    allPoints   = iterate (traverseBridge d) $ traverseBridge d p
-    notBridge p = isNothing $ lookupBridge p g
-    onBoard p   = (getX p <= getXMax g) && (getX p >= 0) &&
-                  (getY p <= getYMax g) && (getY p >= 0)
-    onBridge p  = onBoard p && notBridge p
-
-
--- Cannot use findRemoteIslandPoint here, as that will return nothing if it
--- crosses a bridge, and this assumes a bridge has already been placed and
--- are following it to the remote island
-getRemoteIslandPoint :: Point -> Game -> BridgeDirection -> Point
-getRemoteIslandPoint p g d = fromJust $ find (`isIsland` g) allPoints
-  where
-    allPoints = iterate (traverseBridge d) $ traverseBridge d p
-
-
-getBridgePoints :: Point -> BridgeDirection -> Game -> [Point]
-getBridgePoints p d g =  foldr (:) [] . takeWhile (notIsland g) $ allBridgePoints
-  where
-    allBridgePoints  = iterate (traverseBridge d) $ traverseBridge d p
-    notIsland g p   = not (isIsland p g)
 
 
 -- TODO think i can do better here. I don't need to check for the actual points,
@@ -278,7 +288,7 @@ createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
 -- TODO Can I make this more elegant without a do block here?
 addBridge :: Game -> Point -> Bridge -> Maybe Game
 addBridge game point bridge = do
-    remotePoint     <- findRemoteIslandPoint point (getBridgeDirection bridge) game
+    remotePoint     <- lookupRemoteIslandPoint point (getBridgeDirection bridge) game
     let remoteBridge = reverseBridge bridge
     let island       = getIsland point game
     let remoteIsland = getIsland remotePoint game
@@ -303,7 +313,7 @@ solve game = solveLoop (getFirstPoint game) game
   where
     solveLoop :: Point -> Game -> Maybe Game
     solveLoop p g = case (getNextPoint g p) of
-                        Nothing -> fromBool (isGameSolved g) g
+                        Nothing -> whenBool (isGameSolved g) g
                         Just p  -> asum . map (solveLoop p) $ getPossibleBridges g p
 
 
@@ -347,11 +357,6 @@ getRemotePoints :: Point -> Game -> [Point]
 getRemotePoints p g = map (getRemoteIslandPoint p g . getBridgeDirection) bridges
   where
     bridges = Set.toList . getIslandBridges $ getIsland p g
-
-
-fromBool :: Bool -> a -> Maybe a
-fromBool False _ = Nothing
-fromBool True a  = Just a
 
 
 -- Helper function so I can more easily play with createBridges in repl
