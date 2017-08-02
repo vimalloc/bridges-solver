@@ -27,16 +27,6 @@ data Bridge = Bridge
     } deriving (Eq, Show)
 
 
-data IslandValue = One
-                 | Two
-                 | Three
-                 | Four
-                 | Five
-                 | Six
-                 | Seven
-                 | Eight deriving (Eq, Show, Ord)
-
-
 data Point = Point
     { getX :: !Int
     , getY :: !Int
@@ -44,7 +34,7 @@ data Point = Point
 
 
 data Island = Island
-    { getIslandValue   :: !IslandValue
+    { getIslandValue   :: !Int
     , getIslandBridges :: !(Set.Set Bridge)
     } deriving (Eq, Show, Ord)
 
@@ -69,27 +59,10 @@ whenBool False _ = Nothing
 whenBool True a  = pure a
 
 
-intToIslandValue :: Int -> Either String IslandValue
-intToIslandValue 1 = Right One
-intToIslandValue 2 = Right Two
-intToIslandValue 3 = Right Three
-intToIslandValue 4 = Right Four
-intToIslandValue 5 = Right Five
-intToIslandValue 6 = Right Six
-intToIslandValue 7 = Right Seven
-intToIslandValue 8 = Right Eight
-intToIslandValue _ = Left "Island values must be between 1 and 8 inclusive"
-
-
-islandValueInt :: Island -> Int
-islandValueInt (Island One _)   = 1
-islandValueInt (Island Two _)   = 2
-islandValueInt (Island Three _) = 3
-islandValueInt (Island Four _)  = 4
-islandValueInt (Island Five _)  = 5
-islandValueInt (Island Six  _)  = 6
-islandValueInt (Island Seven _) = 7
-islandValueInt (Island Eight _) = 8
+verifyIslandValue :: Int -> Either String Int
+verifyIslandValue i
+    | i >= 1 && i <= 8 = Right i
+    | otherwise        = Left "Island values must be between 1 and 8 inclusive"
 
 
 bridgeToInt :: Bridge -> Int
@@ -102,11 +75,11 @@ numBridges = Set.foldr ((+) . bridgeToInt) 0 . getIslandBridges
 
 
 islandOverFilled :: Island -> Bool
-islandOverFilled i = numBridges i > islandValueInt i
+islandOverFilled i = numBridges i > getIslandValue i
 
 
 islandFilled :: Island -> Bool
-islandFilled i = numBridges i == islandValueInt i
+islandFilled i = numBridges i == getIslandValue i
 
 
 isIsland :: Point -> Game -> Bool
@@ -119,14 +92,7 @@ isNotIsland p g = not $ isIsland p g
 
 -- Terminal codes to make result blue and bold
 islandToString :: Island -> String
-islandToString (Island One _)   = "\ESC[94m\ESC[1m1\ESC[0m"
-islandToString (Island Two _)   = "\ESC[94m\ESC[1m2\ESC[0m"
-islandToString (Island Three _) = "\ESC[94m\ESC[1m3\ESC[0m"
-islandToString (Island Four _)  = "\ESC[94m\ESC[1m4\ESC[0m"
-islandToString (Island Five _)  = "\ESC[94m\ESC[1m5\ESC[0m"
-islandToString (Island Six _)   = "\ESC[94m\ESC[1m6\ESC[0m"
-islandToString (Island Seven _) = "\ESC[94m\ESC[1m7\ESC[0m"
-islandToString (Island Eight _) = "\ESC[94m\ESC[1m8\ESC[0m"
+islandToString i =  "\ESC[94m\ESC[1m" ++ show (getIslandValue i) ++ "\ESC[0m"
 
 
 bridgeToString :: Bridge -> String
@@ -229,7 +195,7 @@ createGame :: [(Int, Int, Int)] -> Either String Game
 createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
   where
     createIsland :: (Int, Int, Int) -> Either String (Point, Island)
-    createIsland (x,y,v) = (\v -> ((Point x y), Island v Set.empty)) <$> intToIslandValue v
+    createIsland (x,y,v) = (\v -> ((Point x y), Island v Set.empty)) <$> verifyIslandValue v
 
     createIslandMap :: [(Point, Island)] -> Either String (Map.Map Point Island)
     createIslandMap i
