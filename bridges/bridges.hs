@@ -1,8 +1,8 @@
-import Data.List
-import Data.Maybe
-import Data.Foldable
-import Control.Applicative
-import Control.Monad
+import Data.List (find, nub)
+import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, isNothing)
+import Data.Foldable (asum)
+import Control.Applicative ((<|>), liftA2)
+import Control.Exception.Base (assert)
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 
