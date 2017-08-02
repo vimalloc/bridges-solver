@@ -6,8 +6,6 @@ import Control.Exception.Base (assert)
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 
--- TODO add assertions when we have functions that take a game and a point and
---      expect that the point is an island on the game.
 
 -- Left' and Right' use the tick so they don't clash with Eithers Left or Right.
 -- Up' and Down' use the ticks to stay consistant with Left' and Right'.
@@ -139,7 +137,8 @@ nextPoint Right' (Point x y) = (Point (x+1) y)
 getBridgePoints :: Point -> BridgeDirection -> Game -> [Point]
 getBridgePoints p d g = takeWhile (\p -> onBoard p && isNotIsland p g) allPoints
   where
-    startPoint = nextPoint d p
+    point      = assert (isJust $ lookupIsland p g) p
+    startPoint = nextPoint d point
     allPoints = iterate (nextPoint d) $ startPoint
     onBoard p  = (getX p <= getXMax g) && (getX p >= 0) &&
                  (getY p <= getYMax g) && (getY p >= 0)
@@ -155,8 +154,8 @@ lookupRemoteIslandPoint p d g
     islandPoint    = nextPoint d . last $ notOverlapping
 
 
-getRemoteIslandPoint :: Point -> Game -> BridgeDirection -> Point
-getRemoteIslandPoint p g d = nextPoint d . last $ getBridgePoints p d g
+getRemoteIslandPoint :: Point -> BridgeDirection -> Game -> Point
+getRemoteIslandPoint p d g = nextPoint d . last $ getBridgePoints p d g
 
 
 couldBeOnBridge :: Point -> Point -> BridgeDirection -> Bool
@@ -305,9 +304,9 @@ connectedIslands game = loop game Map.empty (getFirstPoint game)
 
 
 getRemotePoints :: Point -> Game -> [Point]
-getRemotePoints p g = map (getRemoteIslandPoint p g . getBridgeDirection) bridges
+getRemotePoints p g = map (\d -> getRemoteIslandPoint p d g) directions
   where
-    bridges = Set.toList . getIslandBridges $ getIsland p g
+    directions = map getBridgeDirection . Set.toList . getIslandBridges $ getIsland p g
 
 
 -- Helper stuff so I can play with games in the repl
