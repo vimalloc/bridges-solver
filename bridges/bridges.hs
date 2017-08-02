@@ -139,7 +139,7 @@ getBridgePoints p d g = takeWhile (\p -> onBoard p && isNotIsland p g) allPoints
   where
     point      = assert (isJust $ lookupIsland p g) p
     startPoint = nextPoint d point
-    allPoints = iterate (nextPoint d) $ startPoint
+    allPoints  = iterate (nextPoint d) $ startPoint
     onBoard p  = (getX p <= getXMax g) && (getX p >= 0) &&
                  (getY p <= getYMax g) && (getY p >= 0)
 
@@ -172,7 +172,7 @@ lookupBridge searchP game = asum . map (searchGameBridges) $ getIslandPoints gam
     searchGameBridges p = find (\b -> elem searchP $ getBridgePoints p (getBridgeDirection b) game)
                         . filter (couldBeOnBridge searchP p . getBridgeDirection) $ bridges
       where
-        island = getIsland p game
+        island  = getIsland p game
         bridges = Set.toList $ getIslandBridges island
 
 
@@ -201,8 +201,8 @@ createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
         | mapSize == listSize = Right iMap
         | otherwise           = Left "Multiple islands exist at the same point"
       where
-        iMap = Map.fromList i
-        mapSize = Map.size iMap
+        iMap     = Map.fromList i
+        mapSize  = Map.size iMap
         listSize = length i
 
     createGameFromMap :: (Map.Map Point Island) -> Either String Game
@@ -279,10 +279,10 @@ getPossibleBridges :: Game -> Point -> [Game]
 getPossibleBridges g p = filter (islandFilled . getIsland p) $ fillBridges p g
   where
     fillBridges :: Point -> Game -> [Game]
-    fillBridges p g = nub $ g : (perms >>= fillBridges p)
+    fillBridges p g = nub $ g : (permutations >>= fillBridges p)
       where
-        bridgeCombinations = liftA2 (Bridge) [Up', Down', Left', Right'] [Single, Double]
-        perms = catMaybes . map (addBridge g p) $ bridgeCombinations
+        allPossibleBridges = liftA2 (Bridge) [Up', Down', Left', Right'] [Single, Double]
+        permutations       = catMaybes . map (addBridge g p) $ allPossibleBridges
 
 
 isGameSolved :: Game -> Bool
