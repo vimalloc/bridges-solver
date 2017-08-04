@@ -5,7 +5,6 @@ import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, isNothing)
 import Data.Foldable (asum)
 import Control.Applicative ((<|>), liftA2)
 import Control.Exception.Base (assert)
-import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
 
 
@@ -24,7 +23,7 @@ data BridgeValue = Single
 data Bridge = Bridge
     { getBridgeDirection :: !BridgeDirection
     , getBridgeValue     :: !BridgeValue
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Ord)
 
 
 data Point = Point
@@ -35,7 +34,7 @@ data Point = Point
 
 data Island = Island
     { getIslandValue   :: !Int
-    , getIslandBridges :: !(Set.Set Bridge)
+    , getIslandBridges :: ![Bridge]
     } deriving (Eq, Show, Ord)
 
 
@@ -44,14 +43,6 @@ data Game = Game
     , getYMax    :: !Int
     , getIslandPointMap :: !(Map.Map Point Island)
     } deriving (Eq, Show)
-
-
--- Define our own ordering test here. We are using a set of bridges for the
--- island, and we don't care if the bridge is a single or double there, only
--- what direction it is leaving the island from. This will insure we cannot
--- have duplicate bridges on an island without any addition checks on our part
-instance Ord Bridge where
-    (Bridge d1 _) `compare` (Bridge d2 _) = d1 `compare` d2
 
 
 whenBool :: Bool -> a -> Maybe a
@@ -71,7 +62,7 @@ bridgeToInt (Bridge _ Double) = 2
 
 
 numBridges :: Island -> Int
-numBridges = Set.foldr ((+) . bridgeToInt) 0 . getIslandBridges
+numBridges = foldr ((+) . bridgeToInt) 0 . getIslandBridges
 
 
 islandOverFilled :: Island -> Bool
@@ -175,7 +166,7 @@ lookupBridge searchP game = asum . map (searchGameBridges) $ getIslandPoints gam
                         . filter (couldBeOnBridge searchP p . getBridgeDirection) $ bridges
       where
         island  = getIsland p game
-        bridges = Set.toList $ getIslandBridges island
+        bridges = getIslandBridges island
 
 
 toString :: Game -> String
@@ -196,7 +187,7 @@ createGame :: [(Int, Int, Int)] -> Either String Game
 createGame i = traverse createIsland i >>= createIslandMap >>= createGameFromMap
   where
     createIsland :: (Int, Int, Int) -> Either String (Point, Island)
-    createIsland (x,y,v) = (\v -> ((Point x y), Island v Set.empty)) <$> verifyIslandValue v
+    createIsland (x,y,v) = (\v -> ((Point x y), Island v [])) <$> verifyIslandValue v
 
     createIslandMap :: [(Point, Island)] -> Either String (Map.Map Point Island)
     createIslandMap i
@@ -249,12 +240,9 @@ addBridge game point bridge = do
     return $ updateIsland remotePoint newIsland2 $ updateIsland point newIsland1 game
   where
     addBridgeToIsland :: Bridge -> Island -> Maybe Island
-    addBridgeToIsland bridge (Island v b)
-        | bridge `Set.member` b      = Nothing
-        | islandOverFilled newIsland = Nothing
-        | otherwise                  = Just newIsland
+    addBridgeToIsland b (Island v bs) = whenBool (not $ islandOverFilled newI) newI
       where
-        newIsland = Island v (bridge `Set.insert` b)
+        newI = Island v (b : bs)
 
     updateIsland :: Point -> Island -> Game -> Game
     updateIsland p i (Game xMax yMax iMap) = Game xMax yMax (Map.insert p i iMap)
@@ -308,4 +296,4 @@ connectedIslands game = loop game Map.empty (getFirstPoint game)
 getRemotePoints :: Point -> Game -> [Point]
 getRemotePoints p g = map (\d -> getRemoteIslandPoint p d g) directions
   where
-    directions = map getBridgeDirection . Set.toList . getIslandBridges $ getIsland p g
+    directions = map getBridgeDirection . getIslandBridges $ getIsland p g
