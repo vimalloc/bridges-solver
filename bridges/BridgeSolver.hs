@@ -240,9 +240,10 @@ addBridge game point bridge = do
     return $ updateIsland remotePoint newIsland2 $ updateIsland point newIsland1 game
   where
     addBridgeToIsland :: Bridge -> Island -> Maybe Island
-    addBridgeToIsland b (Island v bs) = whenBool (not $ islandOverFilled newI) newI
+    addBridgeToIsland b (Island v bs) = whenBool (not overFilled) newIsland
       where
-        newI = Island v (b : bs)
+        newIsland  = Island v (b : bs)
+        overFilled = islandOverFilled newIsland
 
     updateIsland :: Point -> Island -> Game -> Game
     updateIsland p i (Game xMax yMax iMap) = Game xMax yMax (Map.insert p i iMap)
