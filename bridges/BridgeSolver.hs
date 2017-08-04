@@ -47,7 +47,7 @@ data Game = Game
 
 whenBool :: Bool -> a -> Maybe a
 whenBool False _ = Nothing
-whenBool True a  = pure a
+whenBool True a  = Just a
 
 
 verifyIslandValue :: Int -> Either String Int
@@ -62,7 +62,7 @@ bridgeToInt (Bridge _ Double) = 2
 
 
 numBridges :: Island -> Int
-numBridges = foldr ((+) . bridgeToInt) 0 . getIslandBridges
+numBridges = sum . map (bridgeToInt) . getIslandBridges
 
 
 islandOverFilled :: Island -> Bool
